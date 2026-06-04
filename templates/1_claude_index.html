@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aeon AI</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            heading: ["Instrument Serif", "serif"],
+            body:    ["Barlow", "sans-serif"],
+          },
+          borderRadius: { DEFAULT: "9999px" },
+        },
+      },
+    };
+  </script>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+          integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+          integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+          integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/framer-motion@11.11.17/dist/framer-motion.js"></script>
+  <script>window.Motion = window.Motion || window.FramerMotion || window.framerMotion;</script>
+
+  <style>
+    /* ─── Reset ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+
+    /* ─── Liquid Glass — subtle ──────────────────────────── */
+    .liquid-glass {
+      background: rgba(255,255,255,0.01);
+      background-blend-mode: luminosity;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: none;
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .liquid-glass::before {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      padding: 1.4px;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.45) 0%,
+        rgba(255,255,255,0.15) 20%,
+        rgba(255,255,255,0)    40%,
+        rgba(255,255,255,0)    60%,
+        rgba(255,255,255,0.15) 80%,
+        rgba(255,255,255,0.45) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* ─── Liquid Glass — strong (input bar / CTA) ─────────── */
+    .liquid-glass-strong {
+      background: rgba(255,255,255,0.03);
+      background-blend-mode: luminosity;
+      backdrop-filter: blur(50px);
+      -webkit-backdrop-filter: blur(50px);
+      border: none;
+      box-shadow: 4px 4px 4px rgba(0,0,0,0.05), inset 0 1px 1px rgba(255,255,255,0.15);
+      position: relative;
+      overflow: hidden;
+    }
+    .liquid-glass-strong::before {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      padding: 1.4px;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.5) 0%,
+        rgba(255,255,255,0.2) 20%,
+        rgba(255,255,255,0)   40%,
+        rgba(255,255,255,0)   60%,
+        rgba(255,255,255,0.2) 80%,
+        rgba(255,255,255,0.5) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* ─── User bubble — brighter glass ──────────────────────  */
+    .user-bubble {
+      background: rgba(255,255,255,0.085) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.22) !important;
+    }
+    .user-bubble::before {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      padding: 1.4px;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.55) 0%,
+        rgba(255,255,255,0.22) 20%,
+        rgba(255,255,255,0)    40%,
+        rgba(255,255,255,0)    60%,
+        rgba(255,255,255,0.22) 80%,
+        rgba(255,255,255,0.55) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    /* ─── Scrollbar ──────────────────────────────────────── */
+    ::-webkit-scrollbar             { width: 3px; }
+    ::-webkit-scrollbar-track       { background: transparent; }
+    ::-webkit-scrollbar-thumb       { background: rgba(255,255,255,0.12); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+    /* ─── Textarea ───────────────────────────────────────── */
+    textarea {
+      resize: none;
+      outline: none;
+      background: transparent;
+      color: white;
+      line-height: 1.55;
+      font-family: 'Barlow', sans-serif;
+      font-weight: 300;
+      font-size: 0.875rem;
+    }
+    textarea::placeholder { color: rgba(255,255,255,0.32); }
+
+    /* ─── Message text ───────────────────────────────────── */
+    .msg-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'Barlow', sans-serif;
+      font-weight: 300;
+      font-size: 0.875rem;
+      line-height: 1.65;
+      color: #fff;
+    }
+
+    /* ─── Typing dots ────────────────────────────────────── */
+    @keyframes pulse-dot {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+      40%           { opacity: 1;    transform: scale(1);   }
+    }
+    .dot-1 { animation: pulse-dot 1.3s ease infinite 0s;    }
+    .dot-2 { animation: pulse-dot 1.3s ease infinite 0.2s;  }
+    .dot-3 { animation: pulse-dot 1.3s ease infinite 0.4s;  }
+
+    /* ─── Smooth scroll ──────────────────────────────────── */
+    .chat-scroll { scroll-behavior: smooth; }
+
+    /* ─── Gradient fade for input bar ────────────────────── */
+    .input-fade {
+      background: linear-gradient(to top,
+        rgba(0,0,0,0.82) 0%,
+        rgba(0,0,0,0.4)  60%,
+        transparent      100%);
+    }
+  </style>
+</head>
+
+<body>
+  {# Flask injects the chat history as a JS variable so React can render it #}
+  <script>
+    window.__CHAT_HISTORY__ = {{ history | tojson }};
+  </script>
+
+  <div id="root" style="height:100vh;"></div>
+
+  <script type="text/babel">
+    /* ── suppress benign Framer Motion list-key warnings ── */
+    const _ce = console.error;
+    console.error = (...a) => {
+      if (typeof a[0] === 'string' && a[0].includes('Each child in a list')) return;
+      _ce(...a);
+    };
+
+    const { useRef, useEffect, useState, useCallback } = React;
+    const { motion, AnimatePresence }                  = window.Motion || {};
+
+    /* ══════════════════════════════════════════════════════════
+       FadingVideo — rAF-driven crossfade loop (no CSS transitions)
+    ══════════════════════════════════════════════════════════ */
+    const FADE_MS       = 500;
+    const FADE_OUT_LEAD = 0.55;
+
+    function FadingVideo({ src, className, style }) {
+      const vidRef       = useRef(null);
+      const rafRef       = useRef(null);
+      const fadingOutRef = useRef(false);
+
+      const fadeTo = useCallback((target, duration) => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        const v = vidRef.current;
+        if (!v) return;
+        const start = performance.now();
+        const from  = parseFloat(v.style.opacity) || 0;
+        const tick  = (now) => {
+          const t = Math.min((now - start) / duration, 1);
+          v.style.opacity = String(from + (target - from) * t);
+          if (t < 1) rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+      }, []);
+
+      useEffect(() => {
+        const v = vidRef.current;
+        if (!v) return;
+        v.style.opacity = '0';
+
+        const onLoaded     = () => { v.style.opacity = '0'; v.play().catch(() => {}); fadeTo(1, FADE_MS); };
+        const onTimeUpdate = () => {
+          const remaining = v.duration - v.currentTime;
+          if (!fadingOutRef.current && v.duration && remaining <= FADE_OUT_LEAD && remaining > 0) {
+            fadingOutRef.current = true;
+            fadeTo(0, FADE_MS);
+          }
+        };
+        const onEnded = () => {
+          v.style.opacity = '0';
+          setTimeout(() => { v.currentTime = 0; v.play().catch(() => {}); fadingOutRef.current = false; fadeTo(1, FADE_MS); }, 100);
+        };
+
+        v.addEventListener('loadeddata',  onLoaded);
+        v.addEventListener('timeupdate',  onTimeUpdate);
+        v.addEventListener('ended',       onEnded);
+        return () => {
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
+          v.removeEventListener('loadeddata',  onLoaded);
+          v.removeEventListener('timeupdate',  onTimeUpdate);
+          v.removeEventListener('ended',       onEnded);
+        };
+      }, [fadeTo]);
+
+      return (
+        <video
+          ref={vidRef}
+          src={src}
+          autoPlay muted playsInline preload="auto"
+          className={className}
+          style={Object.assign({}, style, { opacity: 0 })}
+        />
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       SVG Icon primitives
+    ══════════════════════════════════════════════════════════ */
+    const SendIcon = () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3.4 2.3a1 1 0 0 0-1.3 1.3l3 8a1 1 0 0 0 .9.7h7.9l-8.4 7.4a1 1 0 0 0 1.3 1.5l17-15a1 1 0 0 0-.3-1.7l-20-2z"/>
+      </svg>
+    );
+
+    const SparkleIcon = ({ size = 13 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74z"/>
+      </svg>
+    );
+
+    const UserIcon = () => (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="white">
+        <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+      </svg>
+    );
+
+    const DotsIcon = () => (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
+        <circle cx="5"  cy="12" r="1.6"/>
+        <circle cx="12" cy="12" r="1.6"/>
+        <circle cx="19" cy="12" r="1.6"/>
+      </svg>
+    );
+
+    const ArrowUpRight = () => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 17L17 7"/><path d="M7 7h10v10"/>
+      </svg>
+    );
+
+    /* ══════════════════════════════════════════════════════════
+       Typing indicator (shown while waiting for AI — optional)
+    ══════════════════════════════════════════════════════════ */
+    function TypingIndicator() {
+      return (
+        <div className="flex items-center gap-1.5 px-1 py-1">
+          <div className="dot-1 w-1.5 h-1.5 rounded-full bg-white/70"/>
+          <div className="dot-2 w-1.5 h-1.5 rounded-full bg-white/70"/>
+          <div className="dot-3 w-1.5 h-1.5 rounded-full bg-white/70"/>
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       ChatMessage bubble
+    ══════════════════════════════════════════════════════════ */
+    function ChatMessage({ message, index }) {
+      const isUser = message.role === 'user';
+      const delay  = Math.min(index * 0.045, 0.55);
+
+      return (
+        <motion.div
+          initial={Object.assign({}, { opacity: 0, y: 18, filter: 'blur(8px)' })}
+          animate={Object.assign({}, { opacity: 1, y: 0,  filter: 'blur(0px)' })}
+          transition={Object.assign({}, { duration: 0.52, delay, ease: [0.22, 1, 0.36, 1] })}
+          className={`flex w-full mb-5 items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+        >
+          {/* AI avatar */}
+          {!isUser && (
+            <div className="flex-shrink-0 w-7 h-7 rounded-full liquid-glass flex items-center justify-center mb-0.5">
+              <SparkleIcon size={11}/>
+            </div>
+          )}
+
+          {/* Bubble */}
+          <div
+            className={`max-w-[72%] rounded-2xl px-4 py-3 liquid-glass ${isUser ? 'user-bubble' : ''}`}
+            style={Object.assign({}, { background: isUser ? undefined : 'rgba(255,255,255,0.025)' })}
+          >
+            {/* AI label */}
+            {!isUser && (
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <SparkleIcon size={9}/>
+                <span style={Object.assign({}, { fontFamily: 'Barlow, sans-serif', fontSize: '9.5px', fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' })}>
+                  Aeon AI
+                </span>
+              </div>
+            )}
+            <p className="msg-text">{message.content}</p>
+          </div>
+
+          {/* User avatar */}
+          {isUser && (
+            <div
+              className="flex-shrink-0 w-7 h-7 rounded-full liquid-glass flex items-center justify-center mb-0.5"
+              style={Object.assign({}, { background: 'rgba(255,255,255,0.07)' })}
+            >
+              <UserIcon/>
+            </div>
+          )}
+        </motion.div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       Empty state — cinematic, shown when history is empty
+    ══════════════════════════════════════════════════════════ */
+    const SUGGESTIONS = [
+      "How far is Mars from Earth?",
+      "What is a black hole?",
+      "Explain dark matter simply",
+      "How do rockets reach orbit?",
+    ];
+
+    function EmptyState({ onSuggest }) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center px-6 py-10">
+          {/* Orb logo */}
+          <motion.div
+            initial={Object.assign({}, { opacity: 0, scale: 0.75, filter: 'blur(12px)' })}
+            animate={Object.assign({}, { opacity: 1, scale: 1,    filter: 'blur(0px)'  })}
+            transition={Object.assign({}, { duration: 0.75, ease: [0.22, 1, 0.36, 1] })}
+            className="w-[72px] h-[72px] liquid-glass rounded-full flex items-center justify-center mb-8"
+          >
+            <span className="font-heading italic text-white text-3xl leading-none">a</span>
+          </motion.div>
+
+          {/* Headline */}
+          <motion.h1
+            initial={Object.assign({}, { opacity: 0, y: 22, filter: 'blur(10px)' })}
+            animate={Object.assign({}, { opacity: 1, y: 0,  filter: 'blur(0px)'  })}
+            transition={Object.assign({}, { duration: 0.72, delay: 0.14, ease: [0.22, 1, 0.36, 1] })}
+            className="font-heading italic text-white leading-[0.88] tracking-[-3px] mb-5"
+            style={Object.assign({}, { fontSize: 'clamp(2.4rem, 6.5vw, 5rem)' })}
+          >
+            What would you<br/>like to explore?
+          </motion.h1>
+
+          {/* Sub copy */}
+          <motion.p
+            initial={Object.assign({}, { opacity: 0, y: 10 })}
+            animate={Object.assign({}, { opacity: 1, y: 0  })}
+            transition={Object.assign({}, { duration: 0.6, delay: 0.28, ease: 'easeOut' })}
+            className="font-body font-light text-white/38 text-sm max-w-[28ch] leading-relaxed mb-10"
+            style={Object.assign({}, { color: 'rgba(255,255,255,0.38)' })}
+          >
+            Your AI assistant is ready. Ask anything — from deep-space curiosities to everyday questions.
+          </motion.p>
+
+          {/* Suggestion chips */}
+          <div className="flex flex-wrap gap-2 justify-center max-w-sm">
+            {SUGGESTIONS.map((s, i) => (
+              <motion.button
+                key={i}
+                initial={Object.assign({}, { opacity: 0, y: 8 })}
+                animate={Object.assign({}, { opacity: 1, y: 0 })}
+                transition={Object.assign({}, { duration: 0.4, delay: 0.38 + i * 0.08, ease: 'easeOut' })}
+                type="button"
+                onClick={() => onSuggest(s)}
+                className="liquid-glass rounded-full px-4 py-2 font-body text-xs transition-all duration-200 cursor-pointer"
+                style={Object.assign({}, { color: 'rgba(255,255,255,0.58)' })}
+                onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.9)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.58)'}
+              >
+                {s}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       Navbar
+    ══════════════════════════════════════════════════════════ */
+    function Navbar() {
+      return (
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 lg:px-10 py-4">
+          {/* Logo */}
+          <motion.div
+            initial={Object.assign({}, { opacity: 0, y: -14 })}
+            animate={Object.assign({}, { opacity: 1,  y: 0   })}
+            transition={Object.assign({}, { duration: 0.6, ease: 'easeOut' })}
+            className="w-11 h-11 liquid-glass rounded-full flex items-center justify-center cursor-pointer"
+          >
+            <span className="font-heading italic text-white text-xl leading-none">a</span>
+          </motion.div>
+
+          {/* Center pill */}
+          <motion.div
+            initial={Object.assign({}, { opacity: 0, y: -14 })}
+            animate={Object.assign({}, { opacity: 1,  y: 0   })}
+            transition={Object.assign({}, { duration: 0.6, delay: 0.1, ease: 'easeOut' })}
+            className="liquid-glass rounded-full px-4 py-2 hidden md:flex items-center gap-2"
+          >
+            <SparkleIcon size={11}/>
+            <span className="font-body font-medium text-white/80 tracking-wide" style={Object.assign({}, { fontSize: '11.5px' })}>
+              Aeon AI Assistant
+            </span>
+          </motion.div>
+
+          {/* Options button */}
+          <motion.div
+            initial={Object.assign({}, { opacity: 0, y: -14 })}
+            animate={Object.assign({}, { opacity: 1,  y: 0   })}
+            transition={Object.assign({}, { duration: 0.6, delay: 0.18, ease: 'easeOut' })}
+            className="w-11 h-11 liquid-glass rounded-full flex items-center justify-center cursor-pointer"
+          >
+            <DotsIcon/>
+          </motion.div>
+        </div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       InputBar — fixed bottom, glassmorphism, auto-resize
+    ══════════════════════════════════════════════════════════ */
+    function InputBar({ value, onChange }) {
+      const taRef    = useRef(null);
+      const formRef  = useRef(null);
+      const canSend  = value.trim().length > 0;
+
+      /* Auto-resize textarea */
+      const handleChange = (e) => {
+        onChange(e.target.value);
+        const ta = taRef.current;
+        if (ta) {
+          ta.style.height = 'auto';
+          ta.style.height = Math.min(ta.scrollHeight, 138) + 'px';
+        }
+      };
+
+      /* Enter submits, Shift+Enter = newline */
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (canSend && formRef.current) formRef.current.requestSubmit();
+        }
+      };
+
+      return (
+        <motion.div
+          initial={Object.assign({}, { opacity: 0, y: 28 })}
+          animate={Object.assign({}, { opacity: 1, y: 0  })}
+          transition={Object.assign({}, { duration: 0.72, delay: 0.22, ease: [0.22, 1, 0.36, 1] })}
+          className="input-fade fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-7 pt-14"
+        >
+          {/* ── The actual form (Flask POST) ───────────────── */}
+          <form
+            ref={formRef}
+            method="POST"
+            action=""
+            className="w-full max-w-2xl"
+          >
+            {/* Glass pill wrapper */}
+            <div className="liquid-glass-strong rounded-2xl px-4 py-3 flex items-end gap-3">
+
+              {/* Leading sparkle */}
+              <div className="flex-shrink-0 flex items-center justify-center mb-[3px]" style={Object.assign({}, { opacity: 0.38 })}>
+                <SparkleIcon size={14}/>
+              </div>
+
+              {/* Textarea */}
+              <textarea
+                ref={taRef}
+                name="query"
+                value={value}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything..."
+                rows={1}
+                style={Object.assign({}, {
+                  flex: 1,
+                  height: '24px',
+                  minHeight: '24px',
+                  maxHeight: '138px',
+                  color: '#ffffff',
+                  caretColor: '#ffffff',
+                  fontFamily: 'Barlow, sans-serif',
+                  fontWeight: 300,
+                  fontSize: '0.875rem',
+                  lineHeight: 1.55,
+                  background: 'transparent',
+                  outline: 'none',
+                  border: 'none',
+                  resize: 'none',
+                })}
+              />
+
+              {/* Send button */}
+              <button
+                type="submit"
+                disabled={!canSend}
+                style={Object.assign({}, {
+                  flexShrink: 0,
+                  width:  '34px',
+                  height: '34px',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1px',
+                  cursor:     canSend ? 'pointer'  : 'default',
+                  background: canSend ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.07)',
+                  color:      canSend ? '#000'                   : 'rgba(255,255,255,0.22)',
+                  transform:  canSend ? 'scale(1)'               : 'scale(0.93)',
+                  transition: 'all 0.2s ease',
+                })}
+              >
+                <SendIcon/>
+              </button>
+            </div>
+
+            {/* Hint */}
+            <p
+              className="text-center font-body mt-2.5 tracking-widest uppercase"
+              style={Object.assign({}, { fontSize: '9px', color: 'rgba(255,255,255,0.14)', letterSpacing: '0.1em' })}
+            >
+              Enter · Send &nbsp;&nbsp; Shift+Enter · New line
+            </p>
+          </form>
+        </motion.div>
+      );
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       App root
+    ══════════════════════════════════════════════════════════ */
+    function App() {
+      /* History injected by Flask via Jinja2 */
+      const history = window.__CHAT_HISTORY__ || [];
+
+      const [inputValue, setInputValue] = useState('');
+      const scrollEndRef  = useRef(null);
+
+      /* Auto-scroll to bottom whenever page loads with history */
+      useEffect(() => {
+        if (scrollEndRef.current) {
+          scrollEndRef.current.scrollIntoView({ behavior: 'instant' });
+        }
+      }, []);
+
+      return (
+        <div style={Object.assign({}, { height: '100vh', position: 'relative', overflow: 'hidden', background: '#000' })}>
+
+          {/* ── Cinematic background video ──────────────────── */}
+          <FadingVideo
+            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260418_080021_d598092b-c4c2-4e53-8e46-94cf9064cd50.mp4"
+            style={Object.assign({}, {
+              position: 'absolute',
+              left: '50%', top: 0,
+              transform: 'translateX(-50%)',
+              width: '120%', height: '120%',
+              objectFit: 'cover',
+              objectPosition: 'top',
+              zIndex: 0,
+            })}
+          />
+
+          {/* ── Subtle readability overlay ───────────────────── */}
+          <div style={Object.assign({}, {
+            position: 'absolute', inset: 0, zIndex: 1,
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.48) 0%, rgba(0,0,0,0.28) 50%, rgba(0,0,0,0.55) 100%)'
+          })}/>
+
+          {/* ── Navbar ───────────────────────────────────────── */}
+          <Navbar/>
+
+          {/* ── Scrollable chat area ─────────────────────────── */}
+          <div
+            className="chat-scroll"
+            style={Object.assign({}, {
+              position: 'absolute', inset: 0,
+              zIndex: 10,
+              overflowY: 'auto',
+              paddingTop: '76px',
+              paddingBottom: '136px',
+            })}
+          >
+            <div
+              className="mx-auto px-4"
+              style={Object.assign({}, {
+                maxWidth: '672px',
+                minHeight: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: history.length === 0 ? 'center' : 'flex-end',
+                paddingTop: history.length === 0 ? '0' : '24px',
+                paddingBottom: '16px',
+              })}
+            >
+              {history.length === 0 ? (
+                /* ── Empty state ── */
+                <EmptyState onSuggest={setInputValue}/>
+              ) : (
+                /* ── Message list rendered from Flask/Jinja history ── */
+                <div>
+                  {history.map((msg, i) => (
+                    <ChatMessage
+                      key={i}
+                      message={msg}
+                      index={i}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Scroll anchor */}
+              <div ref={scrollEndRef}/>
+            </div>
+          </div>
+
+          {/* ── Fixed input bar ──────────────────────────────── */}
+          <InputBar value={inputValue} onChange={setInputValue}/>
+
+        </div>
+      );
+    }
+
+    /* ── Mount ──────────────────────────────────────────────── */
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

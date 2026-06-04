@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARIA · Intelligence Interface</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;1,14..32,300&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/framer-motion@10.18.0/dist/framer-motion.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%; overflow: hidden;
+      background: #020408;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: rgba(255,255,255,0.88);
+      -webkit-font-smoothing: antialiased;
+    }
+    #root { height: 100%; position: relative; z-index: 1; }
+
+    /* ── Scrollbar ─────────────────────── */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(96,165,250,0.22); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.4); }
+
+    /* ── Grid ──────────────────────────── */
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(59,130,246,0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.028) 1px, transparent 1px);
+      background-size: 52px 52px;
+    }
+
+    /* ── Glass surfaces ────────────────── */
+    .glass {
+      background: rgba(255,255,255,0.026);
+      border: 1px solid rgba(255,255,255,0.065);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+    }
+    .glass-user {
+      background: rgba(96,165,250,0.1);
+      border: 1px solid rgba(96,165,250,0.18);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    .glass-ai {
+      background: rgba(255,255,255,0.022);
+      border: 1px solid rgba(255,255,255,0.055);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    /* ── Animations ────────────────────── */
+    @keyframes borderPulse {
+      0%,100% { border-color: rgba(59,130,246,0.12); }
+      50%      { border-color: rgba(96,165,250,0.32); }
+    }
+    @keyframes orbFloat {
+      0%,100% { transform: translateY(0)    scale(1);    }
+      50%      { transform: translateY(-8px) scale(1.02); }
+    }
+    @keyframes orbGlow {
+      0%,100% { opacity: 0.72; }
+      50%      { opacity: 1;   }
+    }
+    @keyframes particleRise {
+      0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+      6%   { opacity: 0.8; }
+      88%  { opacity: 0.28; }
+      100% { transform: translateY(-110vh) translateX(16px) scale(0); opacity: 0; }
+    }
+    .particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(96,165,250,0.5);
+      animation: particleRise linear infinite;
+    }
+    @keyframes statusPulse {
+      0%,100% { box-shadow: 0 0 0 0   rgba(74,222,128,0.5); }
+      50%      { box-shadow: 0 0 0 4px rgba(74,222,128,0);   }
+    }
+    .s-dot { animation: statusPulse 2.2s ease-in-out infinite; }
+
+    @keyframes bounce3 {
+      0%,60%,100% { transform: translateY(0);   }
+      30%          { transform: translateY(-5px); }
+    }
+    .t-dot { animation: bounce3 1.25s ease-in-out infinite; }
+    .t-dot:nth-child(2) { animation-delay: 0.16s; }
+    .t-dot:nth-child(3) { animation-delay: 0.32s; }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    .msg-in { animation: msgIn 0.42s cubic-bezier(0.16,1,0.3,1) both; }
+
+    /* AI label shimmer */
+    @keyframes shimmer {
+      0%   { background-position: -250% 0; }
+      100% { background-position:  250% 0; }
+    }
+    .ai-label {
+      background: linear-gradient(90deg, #60a5fa, #a78bfa, #93c5fd, #60a5fa);
+      background-size: 250% 100%;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4.5s linear infinite;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    }
+
+    /* Orb float */
+    .orb-float { animation: orbFloat 4.8s ease-in-out infinite, orbGlow 4.8s ease-in-out infinite; }
+
+    /* Input */
+    textarea {
+      resize: none; outline: none; border: none; background: transparent;
+      width: 100%; font-family: 'Inter', sans-serif; font-size: 14px;
+      line-height: 1.65; color: rgba(255,255,255,0.9);
+    }
+    textarea::placeholder { color: rgba(255,255,255,0.22); }
+    .input-wrap:focus-within {
+      border-color: rgba(96,165,250,0.35) !important;
+      box-shadow: 0 0 0 1px rgba(96,165,250,0.08), 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* Chip / nav hover */
+    .chip { transition: background 0.18s, border-color 0.18s, color 0.18s; }
+    .chip:hover {
+      background: rgba(96,165,250,0.1) !important;
+      border-color: rgba(96,165,250,0.3) !important;
+      color: rgba(255,255,255,0.9) !important;
+    }
+    .nav-chip { transition: all 0.18s; }
+    .nav-chip:hover { background: rgba(255,255,255,0.05) !important; }
+    .nav-chip.active {
+      background: rgba(96,165,250,0.1) !important;
+      border-color: rgba(96,165,250,0.25) !important;
+    }
+
+    /* Send button */
+    .send-btn { transition: all 0.18s ease; }
+    .send-btn.ready { box-shadow: 0 0 20px rgba(96,165,250,0.35); }
+    .send-btn.ready:hover { background: rgba(96,165,250,1) !important; box-shadow: 0 0 28px rgba(96,165,250,0.55) !important; transform: scale(1.05); }
+
+    /* Pre / code inside messages */
+    .msg-body pre {
+      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+      font-size: 13px; line-height: 1.6; margin: 8px 0;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+    }
+    .msg-body code {
+      background: rgba(0,0,0,0.3); border-radius: 4px;
+      padding: 1px 5px; font-size: 12.5px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      color: rgba(147,197,253,0.9);
+    }
+    .msg-body pre code { background: transparent; padding: 0; color: rgba(255,255,255,0.78); }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <!-- Flask injects history here -->
+  <script>
+    window.__CHAT_HISTORY__ = {{ history | tojson }};
+  </script>
+
+  {% raw %}
+  <script type="text/babel">
+    var React = window.React;
+    var ReactDOM = window.ReactDOM;
+    var useState = React.useState;
+    var useEffect = React.useEffect;
+    var useRef = React.useRef;
+    var useCallback = React.useCallback;
+    var useMemo = React.useMemo;
+
+    /* ────────────────────────────────────────────────────
+       SIMPLE MARKDOWN-LIKE FORMATTER
+    ──────────────────────────────────────────────────── */
+    function formatMessage(text) {
+      var parts = text.split(/(```[\s\S]*?```|`[^`]+`)/g);
+      return parts.map(function(part, i) {
+        if (part.startsWith('```')) {
+          var inner = part.slice(3);
+          if (inner.endsWith('```')) inner = inner.slice(0, -3);
+          var firstNl = inner.indexOf('\n');
+          var code = firstNl > -1 ? inner.slice(firstNl + 1) : inner;
+          return React.createElement('pre', { key: i },
+            React.createElement('code', null, code.trim())
+          );
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return React.createElement('code', { key: i }, part.slice(1, -1));
+        }
+        var lines = part.split('\n');
+        return React.createElement('span', { key: i },
+          lines.map(function(line, j) {
+            return j === 0
+              ? React.createElement(React.Fragment, { key: j }, line)
+              : React.createElement(React.Fragment, { key: j }, React.createElement('br', null), line);
+          })
+        );
+      });
+    }
+
+    /* ────────────────────────────────────────────────────
+       PARTICLES
+    ──────────────────────────────────────────────────── */
+    function Particles() {
+      var list = useMemo(function() {
+        return Array.from({ length: 24 }, function(_, i) {
+          return {
+            id: i,
+            left: (Math.random() * 100).toFixed(1) + '%',
+            delay: (Math.random() * 10).toFixed(2) + 's',
+            dur: (13 + Math.random() * 14).toFixed(2) + 's',
+            size: Math.random() > 0.6 ? 3 : 2,
+          };
+        });
+      }, []);
+      return React.createElement('div', {
+        style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }
+      }, list.map(function(p) {
+        return React.createElement('div', {
+          key: p.id, className: 'particle',
+          style: {
+            left: p.left, bottom: '-4px',
+            width: p.size + 'px', height: p.size + 'px',
+            animationDelay: p.delay, animationDuration: p.dur,
+          }
+        });
+      }));
+    }
+
+    /* ────────────────────────────────────────────────────
+       BACKGROUND
+    ──────────────────────────────────────────────────── */
+    function Background() {
+      return React.createElement('div', { style: { position: 'fixed', inset: 0, zIndex: 0 } },
+        React.createElement('video', {
+          autoPlay: true, muted: true, loop: true, playsInline: true,
+          style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.28 }
+        },
+          React.createElement('source', {
+            src: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260418_080021_d598092b-c4c2-4e53-8e46-94cf9064cd50.mp4',
+            type: 'video/mp4'
+          })
+        ),
+        React.createElement('div', { style: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(2,4,8,0.88) 0%, rgba(5,8,20,0.82) 100%)' } }),
+        React.createElement('div', { className: 'grid-bg', style: { position: 'absolute', inset: 0, opacity: 0.9 } }),
+        React.createElement('div', {
+          style: {
+            position: 'absolute', left: '-100px', top: '-100px',
+            width: '700px', height: '700px', borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(59,130,246,0.055) 0%, transparent 65%)',
+            pointerEvents: 'none',
+          }
+        }),
+        React.createElement('div', {
+          style: {
+            position: 'absolute', right: '-80px', bottom: '-80px',
+            width: '600px', height: '600px', borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.04) 0%, transparent 65%)',
+            pointerEvents: 'none',
+          }
+        }),
+        React.createElement(Particles, null)
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       AI ORB
+    ──────────────────────────────────────────────────── */
+    function AIOrb(props) {
+      var sz = props.size || 80;
+      return React.createElement('div', {
+        className: 'orb-float',
+        style: { width: sz + 'px', height: sz + 'px', position: 'relative', flexShrink: 0 }
+      },
+        React.createElement('div', {
+          style: {
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '1px solid rgba(96,165,250,0.22)',
+            animation: 'borderPulse 3.5s ease-in-out infinite',
+          }
+        }),
+        React.createElement('div', {
+          style: {
+            position: 'absolute', inset: Math.round(sz * 0.1) + 'px', borderRadius: '50%',
+            border: '1px solid rgba(96,165,250,0.1)',
+          }
+        }),
+        React.createElement('div', {
+          style: {
+            position: 'absolute', inset: Math.round(sz * 0.2) + 'px', borderRadius: '50%',
+            background: 'radial-gradient(circle at 36% 32%, rgba(147,197,253,0.95), rgba(59,130,246,0.7) 42%, rgba(17,24,80,0.9))',
+            boxShadow: '0 0 ' + Math.round(sz * 0.35) + 'px rgba(96,165,250,0.5), inset 0 0 ' + Math.round(sz * 0.18) + 'px rgba(255,255,255,0.12)',
+          }
+        }),
+        React.createElement('div', {
+          style: {
+            position: 'absolute',
+            width: Math.round(sz * 0.11) + 'px', height: Math.round(sz * 0.11) + 'px',
+            top: Math.round(sz * 0.25) + 'px', left: Math.round(sz * 0.34) + 'px',
+            borderRadius: '50%', background: 'rgba(255,255,255,0.8)', filter: 'blur(2px)',
+          }
+        })
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       CLOCK
+    ──────────────────────────────────────────────────── */
+    function Clock() {
+      var s = useState(new Date()); var time = s[0]; var setTime = s[1];
+      useEffect(function() {
+        var t = setInterval(function() { setTime(new Date()); }, 1000);
+        return function() { clearInterval(t); };
+      }, []);
+      function pad(n) { return String(n).padStart(2, '0'); }
+      var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return React.createElement('div', { style: { textAlign: 'center' } },
+        React.createElement('div', {
+          style: {
+            fontVariantNumeric: 'tabular-nums', fontSize: '26px', fontWeight: '200',
+            color: 'rgba(255,255,255,0.88)', letterSpacing: '0.08em',
+          }
+        }, pad(time.getHours()) + ':' + pad(time.getMinutes()) + ':' + pad(time.getSeconds())),
+        React.createElement('div', {
+          style: { fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '5px', letterSpacing: '0.1em', textTransform: 'uppercase' }
+        }, DAYS[time.getDay()] + ' · ' + MONTHS[time.getMonth()] + ' ' + time.getDate())
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       LEFT PANEL
+    ──────────────────────────────────────────────────── */
+    function LeftPanel(props) {
+      var nav = [
+        { icon: '◎', label: 'Neural Chat',  active: true  },
+        { icon: '⬡', label: 'Memory Graph', active: false },
+        { icon: '≋', label: 'Data Stream',  active: false },
+        { icon: '◈', label: 'Synthesis',    active: false },
+      ];
+      var stats = [
+        { k: 'Model',   v: 'Gemini Pro',                    c: '#4ade80' },
+        { k: 'Context', v: props.n + ' msg' + (props.n !== 1 ? 's' : ''), c: '#60a5fa' },
+        { k: 'Status',  v: 'Active',                         c: '#a78bfa' },
+      ];
+
+      return React.createElement('div', {
+        style: {
+          width: '238px', flexShrink: 0,
+          display: 'flex', flexDirection: 'column', gap: '12px',
+          padding: '20px 16px', height: '100%', overflow: 'hidden',
+        }
+      },
+        /* Brand card */
+        React.createElement('div', {
+          className: 'glass',
+          style: { borderRadius: '16px', padding: '20px 16px', textAlign: 'center', position: 'relative', overflow: 'hidden' }
+        },
+          React.createElement('div', {
+            style: {
+              position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+              background: 'linear-gradient(90deg, transparent, rgba(96,165,250,0.6), transparent)',
+            }
+          }),
+          React.createElement('div', {
+            style: {
+              position: 'absolute', inset: 0,
+              background: 'radial-gradient(ellipse at 50% 0%, rgba(96,165,250,0.06) 0%, transparent 60%)',
+              pointerEvents: 'none',
+            }
+          }),
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'center', marginBottom: '12px' } },
+            React.createElement(AIOrb, { size: 64 })
+          ),
+          React.createElement('div', {
+            style: {
+              fontFamily: "'Instrument Serif', serif", fontSize: '21px',
+              color: 'rgba(255,255,255,0.94)', letterSpacing: '0.06em',
+            }
+          }, 'ARIA'),
+          React.createElement('div', { className: 'ai-label', style: { display: 'block', marginTop: '4px' } }, 'Adaptive Research Intelligence'),
+          React.createElement('div', {
+            style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '10px' }
+          },
+            React.createElement('span', {
+              className: 's-dot',
+              style: { display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }
+            }),
+            React.createElement('span', { style: { fontSize: '10px', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.1em' } }, 'ONLINE · v3.1')
+          )
+        ),
+
+        /* Clock */
+        React.createElement('div', { className: 'glass', style: { borderRadius: '14px', padding: '14px 16px' } },
+          React.createElement(Clock, null)
+        ),
+
+        /* Status */
+        React.createElement('div', { className: 'glass', style: { borderRadius: '14px', padding: '14px 16px' } },
+          React.createElement('div', {
+            style: { fontSize: '9px', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }
+          }, 'System Status'),
+          stats.map(function(s) {
+            return React.createElement('div', {
+              key: s.k,
+              style: {
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '5px 7px', borderRadius: '7px',
+                background: 'rgba(255,255,255,0.02)', marginBottom: '5px',
+              }
+            },
+              React.createElement('span', { style: { fontSize: '11px', color: 'rgba(255,255,255,0.36)' } }, s.k),
+              React.createElement('span', { style: { fontSize: '11px', fontWeight: '500', color: s.c } }, s.v)
+            );
+          })
+        ),
+
+        /* Nav */
+        React.createElement('div', { className: 'glass', style: { borderRadius: '14px', padding: '12px' } },
+          React.createElement('div', {
+            style: { fontSize: '9px', color: 'rgba(255,255,255,0.28)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px', paddingLeft: '2px' }
+          }, 'Modules'),
+          nav.map(function(item) {
+            return React.createElement('div', {
+              key: item.label,
+              className: 'nav-chip' + (item.active ? ' active' : ''),
+              style: {
+                display: 'flex', alignItems: 'center', gap: '9px',
+                padding: '7px 10px', borderRadius: '9px', marginBottom: '2px',
+                cursor: 'pointer', border: '1px solid transparent',
+              }
+            },
+              React.createElement('span', {
+                style: { fontSize: '13px', color: item.active ? '#60a5fa' : 'rgba(255,255,255,0.26)', width: '15px', textAlign: 'center' }
+              }, item.icon),
+              React.createElement('span', {
+                style: {
+                  fontSize: '12px', fontWeight: item.active ? '500' : '400',
+                  color: item.active ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.32)',
+                }
+              }, item.label)
+            );
+          })
+        ),
+
+        /* Footer */
+        React.createElement('div', { style: { marginTop: 'auto', textAlign: 'center' } },
+          React.createElement('div', { style: { fontSize: '9px', color: 'rgba(255,255,255,0.12)', letterSpacing: '0.1em' } }, '© 2026 ARIA SYSTEMS')
+        )
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       TYPING INDICATOR
+    ──────────────────────────────────────────────────── */
+    function TypingIndicator() {
+      return React.createElement('div', {
+        className: 'msg-in',
+        style: { display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '14px' }
+      },
+        React.createElement('div', {
+          style: {
+            width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, marginTop: '1px',
+            background: 'radial-gradient(circle at 36% 32%, rgba(147,197,253,0.95), rgba(59,130,246,0.7) 42%, rgba(17,24,80,0.9))',
+            boxShadow: '0 0 12px rgba(96,165,250,0.45)',
+          }
+        }),
+        React.createElement('div', {
+          className: 'glass-ai',
+          style: { borderRadius: '4px 14px 14px 14px', padding: '12px 14px', animation: 'borderPulse 2.4s ease-in-out infinite' }
+        },
+          React.createElement('div', { style: { display: 'flex', gap: '5px', alignItems: 'center' } },
+            React.createElement('div', { className: 't-dot', style: { width: '5px', height: '5px', borderRadius: '50%', background: 'rgba(96,165,250,0.65)' } }),
+            React.createElement('div', { className: 't-dot', style: { width: '5px', height: '5px', borderRadius: '50%', background: 'rgba(96,165,250,0.65)' } }),
+            React.createElement('div', { className: 't-dot', style: { width: '5px', height: '5px', borderRadius: '50%', background: 'rgba(96,165,250,0.65)' } })
+          )
+        )
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       MESSAGE BUBBLE
+    ──────────────────────────────────────────────────── */
+    function Message(props) {
+      var msg = props.msg;
+      var isUser = msg.role === 'user';
+      var delay = Math.min(props.index * 0.04, 0.5) + 's';
+
+      if (isUser) {
+        return React.createElement('div', {
+          className: 'msg-in',
+          style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '16px', animationDelay: delay }
+        },
+          React.createElement('div', {
+            className: 'glass-user',
+            style: {
+              maxWidth: '72%', padding: '11px 15px',
+              borderRadius: '16px 16px 3px 16px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.3), 0 0 16px rgba(96,165,250,0.06)',
+            }
+          },
+            React.createElement('div', {
+              className: 'msg-body',
+              style: { fontSize: '14px', lineHeight: '1.68', color: 'rgba(255,255,255,0.9)' }
+            }, formatMessage(msg.content))
+          )
+        );
+      }
+
+      return React.createElement('div', {
+        className: 'msg-in',
+        style: { display: 'flex', justifyContent: 'flex-start', marginBottom: '16px', animationDelay: delay, gap: '10px', alignItems: 'flex-start' }
+      },
+        React.createElement('div', {
+          style: {
+            width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, marginTop: '2px',
+            background: 'radial-gradient(circle at 36% 32%, rgba(147,197,253,0.95), rgba(59,130,246,0.7) 42%, rgba(17,24,80,0.9))',
+            boxShadow: '0 0 12px rgba(96,165,250,0.4)',
+          }
+        }),
+        React.createElement('div', {
+          className: 'glass-ai',
+          style: {
+            maxWidth: '76%', padding: '11px 15px',
+            borderRadius: '3px 16px 16px 16px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.28)',
+            animation: 'borderPulse 4s ease-in-out infinite',
+          }
+        },
+          React.createElement('div', { className: 'ai-label', style: { display: 'block', marginBottom: '7px' } }, '· ARIA ·'),
+          React.createElement('div', {
+            className: 'msg-body',
+            style: { fontSize: '14px', lineHeight: '1.72', color: 'rgba(255,255,255,0.82)' }
+          }, formatMessage(msg.content))
+        )
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       EMPTY STATE
+    ──────────────────────────────────────────────────── */
+    function EmptyState(props) {
+      var chips = [
+        'What can you do?',
+        'Explain quantum computing',
+        'Write a sci-fi short story',
+        'Latest AI breakthroughs',
+        'Help me think through a problem',
+        'Analyze a complex system',
+      ];
+
+      return React.createElement('div', {
+        style: {
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', height: '100%', gap: '28px',
+          padding: '40px', textAlign: 'center',
+        }
+      },
+        /* Orb with halos */
+        React.createElement('div', { style: { position: 'relative', width: '140px', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+          React.createElement(AIOrb, { size: 108 }),
+          React.createElement('div', { style: { position: 'absolute', inset: '-16px', borderRadius: '50%', border: '1px solid rgba(96,165,250,0.1)', animation: 'orbGlow 4.8s ease-in-out infinite' } }),
+          React.createElement('div', { style: { position: 'absolute', inset: '-34px', borderRadius: '50%', border: '1px solid rgba(96,165,250,0.05)', animation: 'orbGlow 4.8s ease-in-out infinite 1s' } }),
+          React.createElement('div', { style: { position: 'absolute', inset: '-54px', borderRadius: '50%', border: '1px solid rgba(96,165,250,0.025)', animation: 'orbGlow 4.8s ease-in-out infinite 2s' } })
+        ),
+
+        React.createElement('div', null,
+          React.createElement('h1', {
+            style: {
+              fontFamily: "'Instrument Serif', serif",
+              fontSize: '42px', fontWeight: '400', lineHeight: '1.1',
+              color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.01em', marginBottom: '12px',
+            }
+          }, 'Intelligence, Activated'),
+          React.createElement('p', {
+            style: { fontSize: '15px', color: 'rgba(255,255,255,0.32)', maxWidth: '360px', lineHeight: '1.72', fontWeight: '300' }
+          }, 'A next-generation AI research terminal. Ask anything — unlock everything.')
+        ),
+
+        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '460px' } },
+          chips.map(function(chip) {
+            return React.createElement('button', {
+              key: chip, className: 'chip',
+              onClick: function() { props.onSuggestion(chip); },
+              style: {
+                padding: '8px 15px', borderRadius: '99px',
+                fontSize: '12.5px', color: 'rgba(255,255,255,0.5)',
+                background: 'rgba(255,255,255,0.032)',
+                border: '1px solid rgba(255,255,255,0.075)',
+                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              }
+            }, chip);
+          })
+        ),
+
+        React.createElement('div', {
+          style: { fontSize: '9.5px', letterSpacing: '0.22em', color: 'rgba(255,255,255,0.14)', textTransform: 'uppercase' }
+        }, '── Powered by Gemini ──')
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       ERROR BANNER
+    ──────────────────────────────────────────────────── */
+    function ErrorBanner(props) {
+      return React.createElement('div', {
+        style: {
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: '12px', padding: '10px 14px', marginBottom: '12px',
+          background: 'rgba(239,68,68,0.07)',
+          border: '1px solid rgba(239,68,68,0.18)',
+          borderRadius: '10px',
+        }
+      },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          React.createElement('span', { style: { fontSize: '13px' } }, '⚠'),
+          React.createElement('span', { style: { fontSize: '13px', color: 'rgba(252,165,165,0.9)' } }, props.msg)
+        ),
+        React.createElement('button', {
+          onClick: props.onDismiss,
+          style: {
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'rgba(252,165,165,0.5)', fontSize: '16px', lineHeight: 1, padding: '0 2px',
+          }
+        }, '×')
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       CHAT INPUT
+    ──────────────────────────────────────────────────── */
+    function ChatInput(props) {
+      var vs = useState(''); var value = vs[0]; var setValue = vs[1];
+      var ref = useRef(null);
+
+      useEffect(function() {
+        var el = ref.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 136) + 'px';
+      }, [value]);
+
+      function send() {
+        var t = value.trim();
+        if (!t || props.disabled) return;
+        props.onSend(t);
+        setValue('');
+        if (ref.current) ref.current.style.height = 'auto';
+      }
+
+      function onKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+      }
+
+      var canSend = value.trim().length > 0 && !props.disabled;
+
+      return React.createElement('div', {
+        style: {
+          padding: '12px 20px 16px', flexShrink: 0,
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+        }
+      },
+        React.createElement('div', {
+          className: 'glass input-wrap',
+          style: {
+            borderRadius: '18px', padding: '12px 12px 12px 18px',
+            display: 'flex', alignItems: 'flex-end', gap: '10px',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+          }
+        },
+          React.createElement('textarea', {
+            ref: ref, value: value,
+            onChange: function(e) { setValue(e.target.value); },
+            onKeyDown: onKey,
+            placeholder: 'Message ARIA…',
+            rows: 1, disabled: props.disabled,
+            style: { flex: 1, minHeight: '24px', maxHeight: '136px', overflowY: 'auto' }
+          }),
+          React.createElement('button', {
+            className: 'send-btn' + (canSend ? ' ready' : ''),
+            onClick: send, disabled: !canSend,
+            style: {
+              width: '38px', height: '38px', borderRadius: '12px', flexShrink: 0,
+              background: canSend ? 'rgba(96,165,250,0.82)' : 'rgba(96,165,250,0.1)',
+              border: 'none', cursor: canSend ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }
+          },
+            React.createElement('svg', {
+              width: '15', height: '15', viewBox: '0 0 24 24', fill: 'none',
+              stroke: canSend ? 'white' : 'rgba(255,255,255,0.25)',
+              strokeWidth: '2.5', strokeLinecap: 'round', strokeLinejoin: 'round'
+            },
+              React.createElement('line', { x1: '22', y1: '2', x2: '11', y2: '13' }),
+              React.createElement('polygon', { points: '22 2 15 22 11 13 2 9 22 2' })
+            )
+          )
+        ),
+        React.createElement('div', {
+          style: { textAlign: 'center', marginTop: '7px', fontSize: '10px', color: 'rgba(255,255,255,0.15)', letterSpacing: '0.05em' }
+        }, 'Enter to send  ·  Shift+Enter for newline')
+      );
+    }
+
+    /* ────────────────────────────────────────────────────
+       FETCH WITH ROBUST ERROR HANDLING
+    ──────────────────────────────────────────────────── */
+    function sendToBackend(content, onSuccess, onError, onDone) {
+      /* Try to pick up Flask-WTF CSRF token if present */
+      var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      var csrfCookie = document.cookie.split(';').reduce(function(acc, c) {
+        var p = c.trim().split('=');
+        return p[0] === 'csrf_token' ? decodeURIComponent(p[1]) : acc;
+      }, null);
+      var csrf = (csrfMeta && csrfMeta.getAttribute('content')) || csrfCookie || '';
+
+      var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+      if (csrf) headers['X-CSRFToken'] = csrf;
+
+      fetch('/chat', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: headers,
+        body: JSON.stringify({ message: content }),
+      })
+      .then(function(res) {
+        var ct = res.headers.get('content-type') || '';
+        if (!res.ok) {
+          /* Try to extract a meaningful error message */
+          return res.text().then(function(body) {
+            var hint = 'HTTP ' + res.status;
+            try { var j = JSON.parse(body); hint += ': ' + (j.error || j.message || JSON.stringify(j)); }
+            catch (e) { if (body && body.length < 200) hint += ': ' + body; }
+            throw new Error(hint);
+          });
+        }
+        if (ct.includes('application/json')) {
+          return res.json().then(function(data) {
+            /* Accept any of these common field names */
+            var reply = data.response || data.message || data.reply || data.content || data.text || data.answer || '';
+            if (!reply) {
+              var keys = Object.keys(data);
+              if (keys.length > 0) reply = String(data[keys[0]]);
+            }
+            onSuccess(reply || '(empty response)');
+          });
+        }
+        /* Non-JSON body — try as plain text */
+        return res.text().then(function(text) { onSuccess(text || '(empty response)'); });
+      })
+      .catch(function(err) {
+        onError(err.message || 'Connection failed. Check that your Flask /chat route is running.');
+      })
+      .finally(onDone);
+    }
+
+    /* ────────────────────────────────────────────────────
+       ROOT APP
+    ──────────────────────────────────────────────────── */
+    function App() {
+      var ms = useState(window.__CHAT_HISTORY__ || []); var msgs = ms[0]; var setMsgs = ms[1];
+      var ts = useState(false); var typing = ts[0]; var setTyping = ts[1];
+      var es = useState(null); var err = es[0]; var setErr = es[1];
+      var bottomRef = useRef(null);
+
+      useEffect(function() {
+        if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+      }, [msgs, typing]);
+
+      var send = useCallback(function(content) {
+        setMsgs(function(prev) { return prev.concat([{ role: 'user', content: content }]); });
+        setTyping(true);
+        setErr(null);
+        sendToBackend(
+          content,
+          function(reply) {
+            setMsgs(function(prev) { return prev.concat([{ role: 'assistant', content: reply }]); });
+          },
+          function(errMsg) { setErr(errMsg); },
+          function() { setTyping(false); }
+        );
+      }, []);
+
+      var isEmpty = msgs.length === 0 && !typing;
+
+      return React.createElement('div', { style: { height: '100vh', display: 'flex', position: 'relative', overflow: 'hidden' } },
+        React.createElement(Background, null),
+
+        React.createElement('div', { style: { display: 'flex', width: '100%', height: '100%', position: 'relative', zIndex: 1 } },
+
+          /* Left panel */
+          React.createElement(LeftPanel, { n: msgs.length }),
+
+          /* Divider */
+          React.createElement('div', {
+            style: {
+              width: '1px', flexShrink: 0, margin: '20px 0',
+              background: 'linear-gradient(180deg, transparent 0%, rgba(96,165,250,0.12) 20%, rgba(96,165,250,0.12) 80%, transparent 100%)',
+            }
+          }),
+
+          /* Chat area */
+          React.createElement('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 } },
+
+            /* Header */
+            React.createElement('div', {
+              style: {
+                padding: '18px 24px 14px', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+              }
+            },
+              React.createElement('div', null,
+                React.createElement('div', {
+                  style: { fontFamily: "'Instrument Serif', serif", fontSize: '19px', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.01em' }
+                }, 'Neural Conversation'),
+                React.createElement('div', {
+                  style: { fontSize: '11px', color: 'rgba(255,255,255,0.28)', marginTop: '2px', letterSpacing: '0.06em' }
+                }, msgs.length + ' message' + (msgs.length !== 1 ? 's' : '') + ' · Gemini session')
+              ),
+              React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '7px' } },
+                React.createElement('span', {
+                  className: 's-dot',
+                  style: { display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }
+                }),
+                React.createElement('span', { style: { fontSize: '10.5px', color: 'rgba(74,222,128,0.75)', letterSpacing: '0.12em' } }, 'CONNECTED')
+              )
+            ),
+
+            /* Messages */
+            React.createElement('div', {
+              style: { flex: 1, overflowY: 'auto', padding: '20px 24px 4px' }
+            },
+              isEmpty
+                ? React.createElement(EmptyState, { onSuggestion: send })
+                : React.createElement('div', null,
+                    msgs.map(function(msg, i) {
+                      return React.createElement(Message, { key: i, msg: msg, index: i });
+                    }),
+                    typing ? React.createElement(TypingIndicator, null) : null,
+                    err ? React.createElement(ErrorBanner, {
+                      msg: err,
+                      onDismiss: function() { setErr(null); }
+                    }) : null,
+                    React.createElement('div', { ref: bottomRef, style: { height: '4px' } })
+                  )
+            ),
+
+            /* Input */
+            React.createElement(ChatInput, { onSend: send, disabled: typing })
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));
+  </script>
+  {% endraw %}
+</body>
+</html>

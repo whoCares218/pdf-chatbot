@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AskPDF — Chat with your documents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        colors: {
+          brand: {
+            50:'#eef4ff',100:'#dbe7ff',200:'#bfd3ff',300:'#93b4ff',
+            400:'#6690ff',500:'#3f6dff',600:'#2952f0',700:'#213fcb',
+            800:'#1f37a3',900:'#1f3382'
+          }
+        },
+        boxShadow: {
+          'soft': '0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06)',
+          'card': '0 4px 14px -2px rgba(16,24,40,0.06), 0 2px 6px -1px rgba(16,24,40,0.04)',
+          'pop':  '0 20px 40px -12px rgba(16,24,40,0.12)'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html,body{height:100%;}
+  body{font-family:'Inter',sans-serif;background:#f8fafc;color:#0f172a;-webkit-font-smoothing:antialiased;}
+  .scroll-thin::-webkit-scrollbar{width:6px;height:6px;}
+  .scroll-thin::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px;}
+  .scroll-thin::-webkit-scrollbar-track{background:transparent;}
+  .fade-in{animation:fade .35s ease both;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .view-anim{animation:slide .35s cubic-bezier(.2,.7,.2,1) both;}
+  @keyframes slide{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .typing span{display:inline-block;width:6px;height:6px;border-radius:9999px;background:#94a3b8;margin:0 1px;animation:bounce 1.2s infinite ease-in-out;}
+  .typing span:nth-child(2){animation-delay:.15s;}
+  .typing span:nth-child(3){animation-delay:.3s;}
+  @keyframes bounce{0%,80%,100%{transform:scale(.6);opacity:.4;}40%{transform:scale(1);opacity:1;}}
+  /* Markdown */
+  .md p{margin:0 0 .6em;}
+  .md p:last-child{margin-bottom:0;}
+  .md ul,.md ol{margin:.4em 0 .7em;padding-left:1.3em;}
+  .md li{margin:.2em 0;}
+  .md h1,.md h2,.md h3{font-weight:600;margin:.7em 0 .3em;color:#0f172a;}
+  .md h1{font-size:1.35em;} .md h2{font-size:1.2em;} .md h3{font-size:1.05em;}
+  .md code{background:#f1f5f9;border:1px solid #e2e8f0;padding:1px 6px;border-radius:6px;font-size:.88em;color:#1e293b;}
+  .md pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;overflow-x:auto;margin:.5em 0;font-size:.86em;line-height:1.55;}
+  .md pre code{background:transparent;border:0;color:inherit;padding:0;}
+  .md a{color:#2952f0;text-decoration:underline;text-underline-offset:2px;}
+  .md blockquote{border-left:3px solid #cbd5e1;padding:.1em .9em;color:#475569;margin:.5em 0;}
+  .md table{border-collapse:collapse;margin:.5em 0;font-size:.9em;}
+  .md th,.md td{border:1px solid #e2e8f0;padding:6px 10px;}
+  .md th{background:#f8fafc;}
+  /* Sidebar */
+  @media (max-width:1023px){
+    .sidebar{transform:translateX(-105%);transition:transform .3s ease;}
+    .sidebar.open{transform:translateX(0);}
+  }
+  .otp-input{width:46px;height:54px;text-align:center;font-size:22px;font-weight:600;border:1px solid #e2e8f0;border-radius:12px;outline:none;background:#fff;transition:all .2s;}
+  .otp-input:focus{border-color:#3f6dff;box-shadow:0 0 0 4px rgba(63,109,255,.15);}
+</style>
+</head>
+<body class="h-full">
+
+<!-- Flask data bridge -->
+<script>
+  window.__CHAT_HISTORY__ = {{ (history if history is defined else [])|tojson|safe }};
+  window.__SESSIONS__     = {{ (sessions if sessions is defined else [])|tojson|safe }};
+  window.__SESSION_PDFS__ = {{ (session_pdfs if session_pdfs is defined else [])|tojson|safe }};
+  window.__IS_AUTHED__    = {{ 'true' if sessions is defined else 'false' }};
+</script>
+
+<!-- Hidden form used to POST queries to "/" (preserves backend contract) -->
+<form id="chat-form" action="/" method="POST" class="hidden">
+  <input type="text" name="query" id="chat-query" />
+  <input type="text" name="session_id" id="chat-session-id" />
+</form>
+
+<!-- ============================== AUTH VIEW ============================== -->
+<div id="auth-view" class="hidden min-h-screen w-full flex items-center justify-center px-4 py-10 bg-gradient-to-br from-slate-50 via-white to-brand-50">
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full" style="background:radial-gradient(circle,rgba(63,109,255,.15),transparent 60%);"></div>
+    <div class="absolute -bottom-40 -right-32 w-[520px] h-[520px] rounded-full" style="background:radial-gradient(circle,rgba(147,180,255,.18),transparent 60%);"></div>
+  </div>
+
+  <div class="relative w-full max-w-md">
+    <!-- Brand -->
+    <div class="flex items-center justify-center gap-2.5 mb-6">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-pop">
+        <i data-lucide="file-text" class="w-5 h-5 text-white"></i>
+      </div>
+      <div class="text-xl font-bold tracking-tight text-slate-900">AskPDF</div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-card border border-slate-200/70 p-7">
+      <!-- Tabs -->
+      <div id="auth-tabs" class="flex p-1 bg-slate-100 rounded-xl mb-6">
+        <button data-tab="login"  class="auth-tab flex-1 py-2 text-sm font-medium rounded-lg transition-all">Log in</button>
+        <button data-tab="signup" class="auth-tab flex-1 py-2 text-sm font-medium rounded-lg transition-all">Sign up</button>
+      </div>
+
+      <!-- Login -->
+      <div id="view-login" class="view-anim space-y-4">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-900">Welcome back</h2>
+          <p class="text-sm text-slate-500 mt-1">Log in to continue chatting with your PDFs.</p>
+        </div>
+        <form id="login-form" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+            <div class="relative">
+              <i data-lucide="mail" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input name="email" type="email" required placeholder="you@example.com"
+                class="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition"/>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+            <div class="relative">
+              <i data-lucide="lock" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input name="password" type="password" required placeholder="••••••••"
+                class="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition"/>
+            </div>
+          </div>
+          <button type="submit" class="auth-submit w-full py-2.5 text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-lg shadow-soft transition flex items-center justify-center gap-2">
+            <span class="label">Log in</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+          <p class="auth-msg text-sm text-center min-h-[1.25rem]"></p>
+        </form>
+      </div>
+
+      <!-- Signup -->
+      <div id="view-signup" class="view-anim space-y-4 hidden">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-900">Create your account</h2>
+          <p class="text-sm text-slate-500 mt-1">Sign up and we'll send a verification code.</p>
+        </div>
+        <form id="signup-form" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Email</label>
+            <div class="relative">
+              <i data-lucide="mail" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input name="email" type="email" required placeholder="you@example.com"
+                class="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition"/>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+            <div class="relative">
+              <i data-lucide="lock" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input name="password" type="password" required placeholder="At least 6 characters"
+                class="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100 transition"/>
+            </div>
+          </div>
+          <button type="submit" class="auth-submit w-full py-2.5 text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-lg shadow-soft transition flex items-center justify-center gap-2">
+            <span class="label">Create account</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+          <p class="auth-msg text-sm text-center min-h-[1.25rem]"></p>
+        </form>
+      </div>
+
+      <!-- OTP -->
+      <div id="view-otp" class="view-anim space-y-4 hidden">
+        <button type="button" id="otp-back" class="text-xs text-slate-500 hover:text-slate-900 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back
+        </button>
+        <div>
+          <h2 class="text-xl font-semibold text-slate-900">Verify your email</h2>
+          <p class="text-sm text-slate-500 mt-1">Enter the 6-digit code sent to <span id="otp-email" class="font-medium text-slate-700"></span>.</p>
+        </div>
+        <form id="otp-form" class="space-y-4">
+          <div id="otp-inputs" class="flex justify-between gap-2">
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+            <input class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*"/>
+          </div>
+          <button type="submit" class="auth-submit w-full py-2.5 text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white rounded-lg shadow-soft transition flex items-center justify-center gap-2">
+            <span class="label">Verify & continue</span>
+            <i data-lucide="check" class="w-4 h-4"></i>
+          </button>
+          <p class="auth-msg text-sm text-center min-h-[1.25rem]"></p>
+        </form>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-slate-400 mt-5">© AskPDF · Chat with your documents</p>
+  </div>
+</div>
+
+<!-- ============================== CHAT VIEW ============================== -->
+<div id="chat-view" class="hidden h-screen w-full flex bg-slate-50">
+  <!-- Sidebar backdrop (mobile) -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-slate-900/40 z-30 hidden lg:hidden"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar fixed lg:static z-40 inset-y-0 left-0 w-72 bg-white border-r border-slate-200 flex flex-col">
+    <div class="px-4 py-4 flex items-center justify-between border-b border-slate-100">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-soft">
+          <i data-lucide="file-text" class="w-4 h-4 text-white"></i>
+        </div>
+        <div class="font-semibold tracking-tight text-slate-900">AskPDF</div>
+      </div>
+      <button id="sidebar-close" class="lg:hidden p-1.5 rounded-md hover:bg-slate-100">
+        <i data-lucide="x" class="w-4 h-4 text-slate-500"></i>
+      </button>
+    </div>
+
+    <div class="px-3 pt-3">
+      <button id="new-chat-btn" class="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg shadow-soft transition">
+        <i data-lucide="plus" class="w-4 h-4"></i> New chat
+      </button>
+    </div>
+
+    <div class="px-4 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Sessions</div>
+    <div id="session-list" class="flex-1 overflow-y-auto scroll-thin px-2 pb-3 space-y-1"></div>
+
+    <div class="px-3 py-3 border-t border-slate-100">
+      <button id="logout-btn" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition">
+        <i data-lucide="log-out" class="w-4 h-4"></i> Log out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col min-w-0">
+    <!-- Top bar -->
+    <header class="h-14 px-4 lg:px-6 flex items-center justify-between border-b border-slate-200 bg-white">
+      <div class="flex items-center gap-2 min-w-0">
+        <button id="sidebar-open" class="lg:hidden p-2 rounded-md hover:bg-slate-100">
+          <i data-lucide="menu" class="w-5 h-5 text-slate-600"></i>
+        </button>
+        <h1 id="current-title" class="text-sm font-semibold text-slate-800 truncate">New Chat</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="rename-btn" class="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 px-2.5 py-1.5 rounded-md hover:bg-slate-100 transition">
+          <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Rename
+        </button>
+      </div>
+    </header>
+
+    <!-- PDF chips -->
+    <div id="pdf-bar" class="px-4 lg:px-6 py-3 border-b border-slate-200 bg-white">
+      <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">PDFs</span>
+        <div id="pdf-chips" class="flex flex-wrap gap-2"></div>
+        <label class="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg cursor-pointer transition">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+          <span id="upload-label">Upload PDF</span>
+          <input id="pdf-input" type="file" accept=".pdf" multiple class="hidden"/>
+        </label>
+      </div>
+    </div>
+
+    <!-- Chat scroll -->
+    <div id="chat-scroll" class="flex-1 overflow-y-auto scroll-thin">
+      <div id="messages" class="max-w-3xl mx-auto px-4 lg:px-6 py-6 space-y-5"></div>
+    </div>
+
+    <!-- Input -->
+    <div class="border-t border-slate-200 bg-white">
+      <div class="max-w-3xl mx-auto px-4 lg:px-6 py-4">
+        <form id="query-form" class="flex items-end gap-2 bg-white border border-slate-200 rounded-2xl shadow-soft focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100 transition px-3 py-2">
+          <textarea id="query-input" rows="1" placeholder="Ask anything about your PDFs…"
+            class="flex-1 resize-none bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none px-1 py-2 max-h-40"></textarea>
+          <button type="submit" id="send-btn" class="shrink-0 w-9 h-9 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white flex items-center justify-center transition shadow-soft">
+            <i data-lucide="arrow-up" class="w-4 h-4"></i>
+          </button>
+        </form>
+        <p class="mt-2 text-[11px] text-slate-400 text-center">AskPDF can make mistakes. Verify important info.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ==================== State ==================== */
+const isAuthed = window.__IS_AUTHED__;
+let sessions   = window.__SESSIONS__ || [];
+let history    = window.__CHAT_HISTORY__ || [];
+let sessionPdfs= window.__SESSION_PDFS__ || [];
+let activeSessionId = sessions[0]?.id ?? null;
+let signupUserId = null;
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+function icons(){ if(window.lucide) lucide.createIcons(); }
+
+/* ==================== Boot ==================== */
+function boot(){
+  if (isAuthed){
+    $('#chat-view').classList.remove('hidden');
+    initChat();
+  } else {
+    $('#auth-view').classList.remove('hidden');
+    showTab('login');
+  }
+  icons();
+}
+
+/* ==================== AUTH ==================== */
+function showTab(tab){
+  $$('.auth-tab').forEach(b=>{
+    const active = b.dataset.tab === tab;
+    b.classList.toggle('bg-white', active);
+    b.classList.toggle('text-slate-900', active);
+    b.classList.toggle('shadow-soft', active);
+    b.classList.toggle('text-slate-500', !active);
+  });
+  ['login','signup','otp'].forEach(v=>{
+    $('#view-'+v).classList.toggle('hidden', v !== tab);
+  });
+  icons();
+}
+
+$$('.auth-tab').forEach(btn => btn.addEventListener('click', ()=>{
+  showTab(btn.dataset.tab);
+  clearMsgs();
+}));
+
+function clearMsgs(){ $$('.auth-msg').forEach(p=>{ p.textContent=''; p.className='auth-msg text-sm text-center min-h-[1.25rem]'; }); }
+function setBusy(form, busy){
+  const btn = form.querySelector('.auth-submit');
+  if(!btn) return;
+  btn.disabled = busy;
+  btn.classList.toggle('opacity-70', busy);
+  btn.querySelector('.label').textContent = busy ? 'Please wait…' : btn.dataset.label || btn.querySelector('.label').textContent;
+}
+function msg(form, text, kind='error'){
+  const p = form.querySelector('.auth-msg');
+  p.textContent = text;
+  p.className = 'auth-msg text-sm text-center min-h-[1.25rem] ' + (kind==='error' ? 'text-red-600' : 'text-emerald-600');
+}
+
+async function postForm(url, data){
+  const fd = new FormData();
+  Object.entries(data).forEach(([k,v]) => fd.append(k, v));
+  const r = await fetch(url, { method:'POST', body: fd, credentials:'same-origin' });
+  let j = {};
+  try { j = await r.json(); } catch(_) {}
+  return { ok: r.ok, status: r.status, data: j };
+}
+
+/* Login */
+$('#login-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  clearMsgs();
+  const form = e.currentTarget;
+  setBusy(form, true);
+  const fd = new FormData(form);
+  const res = await postForm('/login', { email: fd.get('email'), password: fd.get('password') });
+  setBusy(form, false);
+  if (res.data?.message === 'Login successful'){
+    msg(form, 'Welcome back!', 'success');
+    setTimeout(()=>{ window.location.href = '/'; }, 400);
+  } else {
+    msg(form, res.data?.message || 'Login failed');
+  }
+});
+
+/* Signup */
+$('#signup-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  clearMsgs();
+  const form = e.currentTarget;
+  setBusy(form, true);
+  const fd = new FormData(form);
+  const email = fd.get('email');
+  const res = await postForm('/signup', { email, password: fd.get('password') });
+  setBusy(form, false);
+  if (res.data?.user_id){
+    signupUserId = res.data.user_id;
+    $('#otp-email').textContent = email;
+    showTab('otp');
+    msg($('#otp-form'), 'Code sent to your email.', 'success');
+    setTimeout(()=> $('#otp-inputs input')[0]?.focus(), 50);
+  } else {
+    msg(form, res.data?.message || 'Sign up failed');
+  }
+});
+
+/* OTP inputs */
+const otpInputs = $$('#otp-inputs input');
+otpInputs.forEach((inp, i) => {
+  inp.addEventListener('input', ()=>{
+    inp.value = inp.value.replace(/\D/g,'').slice(0,1);
+    if (inp.value && i < otpInputs.length - 1) otpInputs[i+1].focus();
+  });
+  inp.addEventListener('keydown', (e)=>{
+    if (e.key === 'Backspace' && !inp.value && i>0) otpInputs[i-1].focus();
+  });
+  inp.addEventListener('paste', (e)=>{
+    const t = (e.clipboardData.getData('text')||'').replace(/\D/g,'').slice(0,6);
+    if (!t) return;
+    e.preventDefault();
+    t.split('').forEach((c, idx)=>{ if(otpInputs[idx]) otpInputs[idx].value = c; });
+    otpInputs[Math.min(t.length, otpInputs.length-1)].focus();
+  });
+});
+
+$('#otp-back').addEventListener('click', ()=>{ showTab('signup'); clearMsgs(); });
+
+$('#otp-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const form = e.currentTarget;
+  const otp = otpInputs.map(i=>i.value).join('');
+  if (otp.length !== 6) return msg(form, 'Enter all 6 digits.');
+  if (!signupUserId) return msg(form, 'Please sign up again.');
+  setBusy(form, true);
+  const res = await postForm('/verify_otp', { user_id: signupUserId, otp });
+  setBusy(form, false);
+  if (res.data?.message === 'Account verified'){
+    msg(form, 'Verified! Redirecting…', 'success');
+    setTimeout(()=>{ window.location.href = '/'; }, 500);
+  } else {
+    msg(form, res.data?.message || 'Verification failed');
+  }
+});
+
+/* ==================== CHAT ==================== */
+function initChat(){
+  renderSessions();
+  renderPdfs();
+  renderMessages();
+  bindChat();
+  autosizeTextarea();
+}
+
+function escapeHtml(s){ return (s||'').replace(/[<>&"']/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c])); }
+function md(text){
+  try{
+    if(window.marked && window.DOMPurify){
+      marked.setOptions({ breaks:true, gfm:true });
+      return DOMPurify.sanitize(marked.parse(text||''));
+    }
+  }catch(e){}
+  return escapeHtml(text);
+}
+
+function renderSessions(){
+  const list = $('#session-list');
+  list.innerHTML = '';
+  if (!sessions.length){
+    list.innerHTML = '<div class="px-3 py-4 text-xs text-slate-400 text-center">No sessions yet.</div>';
+    return;
+  }
+  sessions.forEach(s => {
+    const active = s.id === activeSessionId;
+    const row = document.createElement('div');
+    row.className = `group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition ${active ? 'bg-brand-50 text-brand-800' : 'hover:bg-slate-100 text-slate-700'}`;
+    row.innerHTML = `
+      <i data-lucide="message-square" class="w-4 h-4 ${active?'text-brand-600':'text-slate-400'} shrink-0"></i>
+      <span class="flex-1 truncate text-sm">${escapeHtml(s.title || 'New Chat')}</span>
+      <button class="rename-row opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/60" title="Rename">
+        <i data-lucide="pencil" class="w-3.5 h-3.5 text-slate-500"></i>
+      </button>`;
+    row.addEventListener('click', (e)=>{
+      if (e.target.closest('.rename-row')) return;
+      loadSession(s.id);
+    });
+    row.querySelector('.rename-row').addEventListener('click', (e)=>{ e.stopPropagation(); renameSession(s); });
+    list.appendChild(row);
+  });
+  const cur = sessions.find(s=>s.id===activeSessionId);
+  $('#current-title').textContent = cur?.title || 'New Chat';
+  icons();
+}
+
+function renderPdfs(){
+  const wrap = $('#pdf-chips');
+  wrap.innerHTML = '';
+  if (!sessionPdfs.length){
+    wrap.innerHTML = '<span class="text-xs text-slate-400">No PDFs uploaded for this session yet.</span>';
+    return;
+  }
+  sessionPdfs.forEach(name=>{
+    const chip = document.createElement('span');
+    chip.className = 'inline-flex items-center gap-1.5 max-w-[220px] px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-full';
+    chip.innerHTML = `<i data-lucide="file-text" class="w-3.5 h-3.5 text-brand-600 shrink-0"></i><span class="truncate">${escapeHtml(name)}</span>`;
+    wrap.appendChild(chip);
+  });
+  icons();
+}
+
+function renderMessages(){
+  const box = $('#messages');
+  box.innerHTML = '';
+  if (!history.length){
+    box.innerHTML = `
+      <div class="text-center py-16 fade-in">
+        <div class="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 items-center justify-center shadow-pop mb-4">
+          <i data-lucide="sparkles" class="w-6 h-6 text-white"></i>
+        </div>
+        <h2 class="text-xl font-semibold text-slate-900">How can I help with your PDFs?</h2>
+        <p class="text-sm text-slate-500 mt-1.5">Upload a document and ask anything about it.</p>
+      </div>`;
+    icons();
+    return;
+  }
+  history.forEach(m => box.appendChild(renderBubble(m.role, m.content)));
+  scrollBottom();
+  icons();
+}
+
+function renderBubble(role, content){
+  const wrap = document.createElement('div');
+  wrap.className = 'fade-in flex gap-3 ' + (role === 'user' ? 'justify-end' : 'justify-start');
+  if (role === 'user'){
+    wrap.innerHTML = `
+      <div class="max-w-[80%] bg-brand-600 text-white text-sm rounded-2xl rounded-tr-md px-4 py-2.5 shadow-soft whitespace-pre-wrap">${escapeHtml(content)}</div>
+      <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+        <i data-lucide="user" class="w-4 h-4"></i>
+      </div>`;
+  } else {
+    wrap.innerHTML = `
+      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shrink-0 shadow-soft">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+      </div>
+      <div class="max-w-[80%] md text-sm text-slate-800 bg-white border border-slate-200 rounded-2xl rounded-tl-md px-4 py-3 shadow-soft">${md(content)}</div>`;
+  }
+  return wrap;
+}
+
+function scrollBottom(){
+  const s = $('#chat-scroll');
+  requestAnimationFrame(()=>{ s.scrollTop = s.scrollHeight; });
+}
+
+function bindChat(){
+  $('#sidebar-open').addEventListener('click', ()=>{
+    $('#sidebar').classList.add('open');
+    $('#sidebar-backdrop').classList.remove('hidden');
+  });
+  $('#sidebar-close').addEventListener('click', closeSidebar);
+  $('#sidebar-backdrop').addEventListener('click', closeSidebar);
+
+  $('#new-chat-btn').addEventListener('click', newChat);
+  $('#logout-btn').addEventListener('click', async ()=>{
+    await fetch('/logout', { credentials:'same-origin' });
+    window.location.href = '/login';
+  });
+  $('#rename-btn').addEventListener('click', ()=>{
+    const cur = sessions.find(s=>s.id===activeSessionId);
+    if (cur) renameSession(cur);
+  });
+
+  $('#pdf-input').addEventListener('change', uploadPdfs);
+
+  $('#query-form').addEventListener('submit', (e)=>{ e.preventDefault(); sendQuery(); });
+  $('#query-input').addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendQuery(); }
+  });
+  $('#query-input').addEventListener('input', autosizeTextarea);
+}
+
+function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sidebar-backdrop').classList.add('hidden'); }
+
+function autosizeTextarea(){
+  const t = $('#query-input');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+}
+
+async function newChat(){
+  const r = await fetch('/create_new_session', { credentials:'same-origin' });
+  const j = await r.json();
+  if (j.session_id){
+    sessions.unshift({ id: j.session_id, title: 'New Chat' });
+    activeSessionId = j.session_id;
+    history = []; sessionPdfs = [];
+    renderSessions(); renderPdfs(); renderMessages();
+    closeSidebar();
+  }
+}
+
+async function loadSession(id){
+  activeSessionId = id;
+  closeSidebar();
+  const r = await fetch('/load_session/' + id, { credentials:'same-origin' });
+  const j = await r.json();
+  history = j.history || [];
+  sessionPdfs = j.pdfs || [];
+  renderSessions(); renderPdfs(); renderMessages();
+}
+
+async function renameSession(s){
+  const title = prompt('Rename session', s.title || 'New Chat');
+  if (!title || title.trim() === '' || title === s.title) return;
+  const fd = new FormData();
+  fd.append('session_id', s.id);
+  fd.append('title', title.trim());
+  const r = await fetch('/rename_session', { method:'POST', body: fd, credentials:'same-origin' });
+  if (r.ok){
+    s.title = title.trim();
+    renderSessions();
+  }
+}
+
+async function uploadPdfs(e){
+  const files = Array.from(e.target.files || []);
+  if (!files.length || !activeSessionId) return;
+  $('#upload-label').textContent = 'Uploading…';
+  const fd = new FormData();
+  files.forEach(f => fd.append('pdfs', f, f.name));
+  fd.append('session_id', activeSessionId);
+  try{
+    const r = await fetch('/upload_pdf', { method:'POST', body: fd, credentials:'same-origin' });
+    if (r.ok){
+      sessionPdfs = sessionPdfs.concat(files.map(f=>f.name));
+      renderPdfs();
+    }
+  } finally {
+    $('#upload-label').textContent = 'Upload PDF';
+    e.target.value = '';
+  }
+}
+
+async function sendQuery(){
+  const t = $('#query-input');
+  const query = t.value.trim();
+  if (!query || !activeSessionId) return;
+
+  // Optimistic user bubble + typing
+  history.push({ role:'user', content: query });
+  const box = $('#messages');
+  if (history.length === 1) box.innerHTML = '';
+  box.appendChild(renderBubble('user', query));
+  const typing = document.createElement('div');
+  typing.className = 'fade-in flex gap-3 justify-start';
+  typing.innerHTML = `
+    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shrink-0 shadow-soft">
+      <i data-lucide="sparkles" class="w-4 h-4"></i>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-md px-4 py-3 shadow-soft">
+      <div class="typing"><span></span><span></span><span></span></div>
+    </div>`;
+  box.appendChild(typing);
+  icons(); scrollBottom();
+
+  t.value = ''; autosizeTextarea();
+  $('#send-btn').disabled = true;
+
+  const fd = new FormData();
+  fd.append('query', query);
+  fd.append('session_id', activeSessionId);
+  try{
+    const r = await fetch('/', { method:'POST', body: fd, credentials:'same-origin' });
+    const html = await r.text();
+    // Parse server-rendered template for fresh history / sessions / pdfs
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const scripts = doc.querySelectorAll('script');
+    let parsed = false;
+    scripts.forEach(sc => {
+      const txt = sc.textContent || '';
+      if (txt.includes('__CHAT_HISTORY__')){
+        const h = txt.match(/__CHAT_HISTORY__\s*=\s*([\s\S]*?);\s*\n/);
+        const s = txt.match(/__SESSIONS__\s*=\s*([\s\S]*?);\s*\n/);
+        const p = txt.match(/__SESSION_PDFS__\s*=\s*([\s\S]*?);\s*\n/);
+        try{
+          if (h) history = JSON.parse(h[1]);
+          if (s) sessions = JSON.parse(s[1]);
+          if (p) sessionPdfs = JSON.parse(p[1]);
+          parsed = true;
+        }catch(_){}
+      }
+    });
+    if (!parsed){
+      // Fallback: reload to get accurate state
+      window.location.href = '/';
+      return;
+    }
+    typing.remove();
+    renderSessions(); renderPdfs(); renderMessages();
+  } catch(err){
+    typing.remove();
+    const errBubble = renderBubble('model', '⚠️ Failed to get a response. Please try again.');
+    box.appendChild(errBubble); icons(); scrollBottom();
+  } finally {
+    $('#send-btn').disabled = false;
+  }
+}
+
+/* Start */
+boot();
+</script>
+</body>
+</html>

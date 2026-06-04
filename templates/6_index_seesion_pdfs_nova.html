@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NOVA — AI Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/framer-motion@11.0.8/dist/framer-motion.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --bg:#05060a;
+    --ink:#e7ecf5;
+    --muted:#7d8699;
+    --glow:#5aa9ff;
+    --line:rgba(255,255,255,0.08);
+  }
+  html,body,#root{height:100%;}
+  body{
+    margin:0;
+    background:#04050a;
+    color:var(--ink);
+    font-family:'Inter','Barlow',sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    /* Prevent iOS rubber-band / address-bar jump using dynamic viewport */
+    min-height: 100dvh;
+  }
+  .app-shell{ height: 100vh; height: 100dvh; }
+  /* Disable hover-lift on touch devices to avoid sticky hover state */
+  @media (hover: none){ .lift:hover{ transform:none; } }
+  /* Sidebar responsive transform — no JS needed */
+  .nova-sidebar{ transform: translateX(-110%); transition: transform .45s cubic-bezier(.2,.7,.2,1); }
+  .nova-sidebar.is-open{ transform: translateX(0); }
+  @media (min-width: 1024px){
+    .nova-sidebar{ position: static !important; transform: none !important; }
+  }
+  /* Ultra-wide / TV scaling */
+  @media (min-width: 1920px){
+    .nova-chat-wrap{ max-width: 1280px !important; }
+    .nova-title{ font-size: clamp(4rem, 5vw, 6rem) !important; }
+  }
+  .serif{font-family:'Instrument Serif', serif; font-weight:400; letter-spacing:-0.01em;}
+  .mono{font-family: ui-monospace, 'SF Mono', Menlo, monospace;}
+
+  /* scrollbar */
+  .nova-scroll::-webkit-scrollbar{width:6px;}
+  .nova-scroll::-webkit-scrollbar-track{background:transparent;}
+  .nova-scroll::-webkit-scrollbar-thumb{
+    background:linear-gradient(180deg, rgba(90,169,255,0.5), rgba(90,169,255,0.05));
+    border-radius:10px;
+  }
+
+  .grid-bg{
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
+  .noise{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/></svg>");
+    opacity:.06;
+    mix-blend-mode:overlay;
+  }
+
+  .glass{
+    background: linear-gradient(180deg, rgba(20,26,40,0.55), rgba(10,14,22,0.35));
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    border:1px solid rgba(255,255,255,0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 30px 60px -30px rgba(0,0,0,0.8);
+  }
+
+  .glass-bright{
+    background: linear-gradient(180deg, rgba(90,169,255,0.18), rgba(90,169,255,0.06));
+    border:1px solid rgba(120,180,255,0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      0 12px 40px -10px rgba(90,169,255,0.35);
+  }
+
+  .ring-soft{
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px -20px rgba(90,169,255,0.35);
+  }
+
+  .ai-border{
+    position:relative;
+  }
+  .ai-border::before{
+    content:"";
+    position:absolute; inset:0;
+    border-radius:inherit;
+    padding:1px;
+    background: linear-gradient(135deg, rgba(120,180,255,0.55), rgba(120,180,255,0) 40%, rgba(170,120,255,0.35) 70%, rgba(120,180,255,0.4));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events:none;
+    opacity:.9;
+  }
+
+  .orb{
+    background: radial-gradient(circle at 35% 30%, #cfe2ff 0%, #5aa9ff 30%, #1a2f6a 65%, #060a18 100%);
+    box-shadow:
+      0 0 40px rgba(90,169,255,0.55),
+      0 0 120px rgba(90,169,255,0.25),
+      inset -8px -10px 30px rgba(0,0,0,0.6),
+      inset 8px 10px 30px rgba(255,255,255,0.15);
+  }
+
+  .glow-dot{
+    background: radial-gradient(circle, #5aa9ff 0%, rgba(90,169,255,0) 70%);
+  }
+
+  .chip{
+    border:1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    transition: all .25s ease;
+  }
+  .chip:hover{ background: rgba(90,169,255,0.08); border-color: rgba(120,180,255,0.4); }
+
+  .vignette{
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%);
+  }
+
+  textarea.nova-input{
+    background:transparent;
+    color:#e7ecf5;
+    outline:none;
+    resize:none;
+    width:100%;
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.55;
+  }
+  textarea.nova-input::placeholder{ color:#646d80; }
+
+  .typing-dot{
+    width:6px;height:6px;border-radius:999px;background:#9fc4ff;
+    box-shadow:0 0 10px #5aa9ff;
+  }
+
+  @keyframes float-y { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .float-y{ animation: float-y 6s ease-in-out infinite; }
+
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
+  .spin-slow{ animation: spin-slow 24s linear infinite; }
+
+  .particle{
+    position:absolute; border-radius:9999px;
+    background: radial-gradient(circle, rgba(180,210,255,0.9), rgba(90,169,255,0) 70%);
+    filter: blur(.4px);
+  }
+
+  /* Markdown styling for AI responses */
+  .md-body{ font-size:14.5px; line-height:1.65; color:rgba(231,236,245,0.92); }
+  .md-body p{ margin:0 0 .65em; }
+  .md-body p:last-child{ margin-bottom:0; }
+  .md-body strong{ color:#fff; font-weight:600; }
+  .md-body em{ color:#cfe2ff; }
+  .md-body a{ color:#9fc4ff; text-decoration:underline; text-underline-offset:2px; }
+  .md-body ul,.md-body ol{ margin:.4em 0 .8em; padding-left:1.25em; }
+  .md-body li{ margin:.25em 0; }
+  .md-body h1,.md-body h2,.md-body h3{ font-family:'Instrument Serif',serif; font-weight:400; letter-spacing:-0.01em; margin:.6em 0 .35em; color:#fff; }
+  .md-body h1{ font-size:1.6em; }
+  .md-body h2{ font-size:1.35em; }
+  .md-body h3{ font-size:1.15em; }
+  .md-body code{
+    font-family: ui-monospace,'SF Mono',Menlo,monospace;
+    font-size:.88em;
+    background: rgba(90,169,255,0.10);
+    border:1px solid rgba(120,180,255,0.18);
+    padding:1px 6px; border-radius:6px; color:#cfe2ff;
+  }
+  .md-body pre{
+    background: linear-gradient(180deg, rgba(8,12,22,0.85), rgba(4,6,12,0.85));
+    border:1px solid rgba(120,180,255,0.18);
+    border-radius:12px; padding:14px 16px; overflow-x:auto;
+    margin:.6em 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .md-body pre code{
+    background:transparent; border:0; padding:0; color:#dbe7ff; font-size:.86em; line-height:1.55;
+  }
+  .md-body blockquote{
+    border-left:2px solid rgba(120,180,255,0.45);
+    padding:.1em 0 .1em .9em; margin:.5em 0; color:rgba(231,236,245,0.78);
+    background: linear-gradient(90deg, rgba(90,169,255,0.06), transparent);
+    border-radius:0 8px 8px 0;
+  }
+  .md-body table{ border-collapse:collapse; margin:.6em 0; font-size:.9em; }
+  .md-body th,.md-body td{ border:1px solid rgba(255,255,255,0.08); padding:6px 10px; }
+  .md-body th{ background:rgba(255,255,255,0.04); }
+  .md-body hr{ border:0; height:1px; background:rgba(255,255,255,0.08); margin:.9em 0; }
+
+  /* Conic ring on orb */
+  @keyframes ring-spin { to { transform: rotate(360deg); } }
+  .conic-ring{
+    background: conic-gradient(from 0deg, rgba(120,180,255,0) 0%, rgba(120,180,255,0.7) 25%, rgba(170,120,255,0.6) 50%, rgba(120,180,255,0) 75%, rgba(120,180,255,0) 100%);
+    -webkit-mask: radial-gradient(circle, transparent 58%, black 60%, black 100%);
+            mask: radial-gradient(circle, transparent 58%, black 60%, black 100%);
+    animation: ring-spin 8s linear infinite;
+  }
+
+  /* Caret blink for typewriter */
+  .caret{ display:inline-block; width:7px; height:1em; vertical-align:-2px;
+    background: linear-gradient(180deg, #9fc4ff, #5aa9ff); margin-left:2px; border-radius:1px;
+    animation: blink 1s steps(2,start) infinite; box-shadow:0 0 8px rgba(90,169,255,0.6);
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Backdrop for mobile sidebar */
+  .backdrop{ background: rgba(2,4,10,0.6); backdrop-filter: blur(8px); }
+
+  /* Subtle hover lift on assistant cards */
+  .lift{ transition: transform .35s ease, box-shadow .35s ease; }
+  .lift:hover{ transform: translateY(-1px); }
+
+  /* Suggestion chip hover */
+  .chip-hover:hover{ transform: translateY(-1px); }
+
+  /* Scrollbar utility */
+  .nova-scroll{ scrollbar-width: thin; scrollbar-color: rgba(90,169,255,0.4) transparent; }
+
+  /* Session list items */
+  .session-item{
+    border:1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    transition: all .2s ease;
+  }
+  .session-item:hover{
+    background: rgba(90,169,255,0.06);
+    border-color: rgba(120,180,255,0.25);
+  }
+  .session-item.active{
+    background: linear-gradient(180deg, rgba(90,169,255,0.18), rgba(90,169,255,0.06));
+    border-color: rgba(120,180,255,0.45);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 24px -10px rgba(90,169,255,0.4);
+  }
+</style>
+</head>
+<body>
+
+
+<script>
+  window.__CHAT_HISTORY__ = {{ history|tojson|safe }};
+  window.__SESSIONS__     = {{ sessions|tojson|safe }};
+  window.__SESSION_PDFS__ = {{ (session_pdfs if session_pdfs is defined else [])|tojson|safe }};
+</script>
+
+<form id="nova-form" action="/" method="POST" style="display:none">
+  <input type="text" name="query" id="nova-query" />
+  <input type="text" name="session_id" id="nova-session-id" />
+</form>
+
+<div id="root"></div>
+
+{% raw %}
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { motion, AnimatePresence } = window.Motion || window.FramerMotion || {};
+
+/* ---------- Markdown helper ---------- */
+function renderMarkdown(text){
+  try {
+    if (window.marked && window.DOMPurify) {
+      window.marked.setOptions({ breaks: true, gfm: true });
+      const raw = window.marked.parse(text || '');
+      return window.DOMPurify.sanitize(raw);
+    }
+  } catch(e){}
+  return (text || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+}
+
+/* ---------- Typewriter hook ---------- */
+function useTypewriter(text, enabled, speed=14){
+  const [out, setOut] = useState(enabled ? '' : text);
+  useEffect(()=>{
+    if (!enabled){ setOut(text); return; }
+    setOut('');
+    let i = 0;
+    const step = Math.max(1, Math.ceil(text.length / 200));
+    const id = setInterval(()=>{
+      i = Math.min(text.length, i + step);
+      setOut(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, speed);
+    return ()=>clearInterval(id);
+  }, [text, enabled, speed]);
+  return [out, out.length < (text||'').length];
+}
+
+/* ---------- Animated Background ---------- */
+function AnimatedBackground(){
+  const particles = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < 36; i++) {
+      arr.push({
+        id: i,
+        left: Math.random()*100,
+        top: Math.random()*100,
+        size: 2 + Math.random()*4,
+        delay: Math.random()*6,
+        dur: 8 + Math.random()*10,
+        o: 0.25 + Math.random()*0.5,
+      });
+    }
+    return arr;
+  }, []);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {/* video */}
+      <video
+        autoPlay muted loop playsInline
+        className="absolute inset-0 w-full h-full object-cover opacity-50"
+        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260418_080021_d598092b-c4c2-4e53-8e46-94cf9064cd50.mp4"
+      />
+      {/* darken */}
+      <div className="absolute inset-0" style={Object.assign({}, {background:'linear-gradient(180deg, rgba(4,5,10,0.7), rgba(4,5,10,0.88))'})}/>
+      {/* radial soft glow */}
+      <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full"
+           style={Object.assign({}, {background:'radial-gradient(circle, rgba(90,169,255,0.18), transparent 60%)', filter:'blur(20px)'})}/>
+      <div className="absolute -bottom-60 right-0 w-[700px] h-[700px] rounded-full"
+           style={Object.assign({}, {background:'radial-gradient(circle, rgba(120,90,255,0.12), transparent 60%)', filter:'blur(30px)'})}/>
+      {/* grid */}
+      <div className="absolute inset-0 grid-bg"/>
+      {/* noise */}
+      <div className="absolute inset-0 noise"/>
+      {/* particles */}
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          className="particle"
+          style={Object.assign({}, {
+            left: p.left+'%',
+            top: p.top+'%',
+            width: p.size+'px',
+            height: p.size+'px',
+            opacity: p.o
+          })}
+          animate={{ y: [0, -30, 0], opacity: [p.o, p.o*0.3, p.o] }}
+          transition={{ duration: p.dur, delay: p.delay, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      ))}
+      {/* vignette */}
+      <div className="absolute inset-0 vignette"/>
+    </div>
+  );
+}
+
+/* ---------- GlassCard ---------- */
+function GlassCard({children, className, bright, bordered, style}){
+  const cls = `glass rounded-2xl ${bright?'glass-bright':''} ${bordered?'ai-border':''} ${className||''}`;
+  return <div className={cls} style={style}>{children}</div>;
+}
+
+/* ---------- Orb ---------- */
+function Orb({size=80}){
+  return (
+    <div className="relative" style={Object.assign({}, {width:size, height:size})}>
+      <div className="absolute inset-0 rounded-full glow-dot" style={Object.assign({}, {transform:'scale(1.8)', opacity:.55})}/>
+      <motion.div
+        className="absolute inset-0 rounded-full orb"
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 4, repeat: Infinity, ease:'easeInOut'}}
+      />
+      <div className="absolute inset-[-6px] rounded-full conic-ring"/>
+      <motion.div
+        className="absolute inset-[-14px] rounded-full border border-white/10"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 24, repeat: Infinity, ease:'linear'}}
+        style={Object.assign({}, {borderTopColor:'rgba(120,180,255,0.55)'})}
+      />
+      <motion.div
+        className="absolute inset-[-24px] rounded-full border border-white/5"
+        animate={{ rotate: -360 }}
+        transition={{ duration: 40, repeat: Infinity, ease:'linear'}}
+        style={Object.assign({}, {borderLeftColor:'rgba(170,120,255,0.4)'})}
+      />
+    </div>
+  );
+}
+
+/* ---------- PDF Uploader ---------- */
+function PdfUploader({sessionId, pdfs, onUploaded}){
+  const inputRef = useRef(null);
+  const [files, setFiles] = useState([]);
+  const [status, setStatus] = useState('idle'); // idle | uploading | success | error
+  const [progress, setProgress] = useState(0);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const pick = () => inputRef.current?.click();
+
+  const onChange = (e) => {
+    const list = Array.from(e.target.files || []).filter(f => /\.pdf$/i.test(f.name));
+    setFiles(list);
+    setStatus('idle');
+    setErrorMsg('');
+  };
+
+  const upload = () => {
+    if (!files.length || !sessionId) return;
+    const fd = new FormData();
+    files.forEach(f => fd.append('pdfs', f, f.name));
+    fd.append('session_id', String(sessionId));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload_pdf');
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300){
+        setStatus('success');
+        setProgress(100);
+        const names = files.map(f => f.name);
+        onUploaded && onUploaded(names);
+        setFiles([]);
+        if (inputRef.current) inputRef.current.value = '';
+        setTimeout(()=> setStatus(s => s === 'success' ? 'idle' : s), 2800);
+      } else {
+        setStatus('error');
+        setErrorMsg(`Upload failed (${xhr.status})`);
+      }
+    };
+    xhr.onerror = () => { setStatus('error'); setErrorMsg('Network error'); };
+    setStatus('uploading');
+    setProgress(0);
+    xhr.send(fd);
+  };
+
+  const uploading = status === 'uploading';
+
+  return (
+    <GlassCard bordered className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="mono text-[10px] tracking-[0.25em] text-white/40">UPLOAD PDFs</div>
+        <div className="mono text-[10px] text-white/30">{files.length || ''}</div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        name="pdfs"
+        accept=".pdf"
+        multiple
+        onChange={onChange}
+        className="hidden"
+      />
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={pick}
+          disabled={uploading || !sessionId}
+          className="chip rounded-xl px-3 py-2 text-[12px] text-white/80 flex items-center gap-2 disabled:opacity-40 flex-1"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 01-7.78-7.78l9.19-9.19a3.5 3.5 0 014.95 4.95L9.41 17.41a1.5 1.5 0 11-2.12-2.12L15.5 7.07"/>
+          </svg>
+          <span className="truncate">{files.length ? `${files.length} file${files.length>1?'s':''} selected` : 'Choose PDFs'}</span>
+        </button>
+        <motion.button
+          whileTap={{ scale:.95 }}
+          type="button"
+          onClick={upload}
+          disabled={!files.length || uploading || !sessionId}
+          className="glass-bright rounded-xl px-3 py-2 text-[12px] text-white font-medium disabled:opacity-40 flex items-center gap-1.5"
+        >
+          {uploading ? (
+            <>
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+              <span>{progress}%</span>
+            </>
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              <span>Upload</span>
+            </>
+          )}
+        </motion.button>
+      </div>
+
+      {/* Selected files preview */}
+      {!!files.length && !uploading && (
+        <div className="mt-3 space-y-1">
+          {files.slice(0,4).map((f,i)=>(
+            <div key={i} className="text-[11px] text-white/55 truncate flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-sky-400/70 shrink-0"/>
+              <span className="truncate">{f.name}</span>
+            </div>
+          ))}
+          {files.length > 4 && (
+            <div className="text-[11px] text-white/35">+ {files.length-4} more</div>
+          )}
+        </div>
+      )}
+
+      {/* Progress bar */}
+      {uploading && (
+        <div className="mt-3">
+          <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+            <motion.div
+              className="h-full"
+              style={{ background: 'linear-gradient(90deg,#5aa9ff,#9fc4ff)' }}
+              initial={{ width: 0 }}
+              animate={{ width: progress + '%' }}
+              transition={{ duration: .25 }}
+            />
+          </div>
+          <div className="mono text-[10px] text-white/40 mt-1.5">Processing PDFs…</div>
+        </div>
+      )}
+
+      {/* Status */}
+      <AnimatePresence>
+        {status === 'success' && (
+          <motion.div
+            initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
+            className="mt-3 text-[11px] text-emerald-300 flex items-center gap-1.5"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            Uploaded successfully
+          </motion.div>
+        )}
+        {status === 'error' && (
+          <motion.div
+            initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
+            className="mt-3 text-[11px] text-rose-300"
+          >{errorMsg || 'Something went wrong'}</motion.div>
+        )}
+        {!sessionId && (
+          <motion.div
+            initial={{ opacity:0 }} animate={{ opacity:1 }}
+            className="mt-3 text-[11px] text-white/35"
+          >Waiting for session…</motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Uploaded PDFs list for current session */}
+      <div className="mt-4 pt-3 border-t border-white/5">
+        <div className="flex items-center justify-between mb-2">
+          <div className="mono text-[10px] tracking-[0.25em] text-white/40">UPLOADED PDFs</div>
+          <div className="mono text-[10px] text-white/30">{(pdfs||[]).length}</div>
+        </div>
+        {(!pdfs || pdfs.length === 0) ? (
+          <div className="text-[11px] text-white/35 px-1 py-1">No PDFs in this session</div>
+        ) : (
+          <div className="flex flex-col gap-1 max-h-40 overflow-y-auto nova-scroll pr-1">
+            {pdfs.map((name, i) => (
+              <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/[0.02] border border-white/5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-sky-300/80 shrink-0">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>
+                </svg>
+                <span className="text-[11.5px] text-white/75 truncate" title={name}>{name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
+/* ---------- Sidebar ---------- */
+function Sidebar({
+  mobileOpen,
+  onClose,
+  sessions,
+  activeSessionId,
+  onSelectSession,
+  onNewChat,
+  pdfs,
+  onPdfsUploaded
+}){
+  return (
+    <React.Fragment>
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-30 lg:hidden backdrop"
+          />
+        )}
+      </AnimatePresence>
+      <motion.aside
+        initial={{ opacity:0, filter:'blur(10px)' }}
+        animate={{ opacity:1, filter:'blur(0px)' }}
+        transition={{ duration: .6, ease:'easeOut' }}
+        className={`nova-sidebar ${mobileOpen?'is-open':''} fixed lg:static z-40 top-0 left-0 h-full w-[86vw] max-w-[340px] lg:w-[340px] shrink-0 flex flex-col gap-5 p-5 sm:p-6 overflow-y-auto nova-scroll`}
+        style={{background: 'linear-gradient(180deg, rgba(4,5,10,0.92), rgba(4,5,10,0.7))'}}
+      >
+      {/* Brand */}
+      <div className="flex items-center gap-3">
+        <div className="float-y"><Orb size={44}/></div>
+        <div>
+          <div className="serif text-2xl leading-none">Nova</div>
+          <div className="mono text-[10px] tracking-[0.3em] text-white/40 mt-1">INTELLIGENCE / v3.14</div>
+        </div>
+      </div>
+
+      {/* New Chat */}
+      <motion.button
+        whileTap={{ scale:.97 }}
+        whileHover={{ y:-1 }}
+        onClick={onNewChat}
+        className="glass-bright rounded-2xl px-4 py-3 flex items-center justify-center gap-2 text-white text-sm font-medium"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>New Chat</span>
+      </motion.button>
+
+      {/* Sessions */}
+      <div>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <div className="mono text-[10px] tracking-[0.25em] text-white/40">CHAT SESSIONS</div>
+          <div className="mono text-[10px] text-white/30">{sessions?.length || 0}</div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {(!sessions || sessions.length === 0) && (
+            <div className="text-[12px] text-white/40 px-3 py-4 text-center">
+              No sessions yet
+            </div>
+          )}
+          {sessions && sessions.map((s) => {
+            const isActive = String(s.id) === String(activeSessionId);
+            return (
+              <motion.button
+                key={s.id}
+                whileHover={{ x:2 }}
+                transition={{ duration:.15 }}
+                onClick={()=> onSelectSession(s.id)}
+                className={`session-item rounded-xl px-3 py-2.5 text-left flex items-center gap-2.5 group ${isActive?'active':''}`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                     className={isActive?'text-sky-300':'text-white/40'}>
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                </svg>
+                <span className={`flex-1 min-w-0 truncate text-[13px] ${isActive?'text-white':'text-white/70 group-hover:text-white/90'}`}>
+                  {s.title || 'New Chat'}
+                </span>
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"
+                        style={Object.assign({},{boxShadow:'0 0 8px #5aa9ff'})}/>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* PDF Upload */}
+      <PdfUploader sessionId={activeSessionId} pdfs={pdfs} onUploaded={onPdfsUploaded}/>
+
+    </motion.aside>
+    </React.Fragment>
+  );
+}
+
+/* ---------- Message ---------- */
+function Message({msg, index, isLatestAssistant}){
+  const isUser = msg.role === 'user';
+  const [copied, setCopied] = useState(false);
+  const [text, typing] = useTypewriter(msg.content || '', !isUser && isLatestAssistant, 12);
+
+  const copy = ()=>{
+    try { navigator.clipboard.writeText(msg.content || ''); setCopied(true); setTimeout(()=>setCopied(false), 1400); } catch(e){}
+  };
+
+  const time = useMemo(()=> new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}), []);
+
+  return (
+    <motion.div
+      initial={{ opacity:0, y:14, filter:'blur(8px)' }}
+      animate={{ opacity:1, y:0, filter:'blur(0px)' }}
+      transition={{ duration: .55, ease:'easeOut', delay: Math.min(index*0.04, 0.4) }}
+      className={`group w-full flex ${isUser?'justify-end':'justify-start'}`}
+    >
+      <div className={`max-w-[92%] sm:max-w-[85%] md:max-w-[80%] ${isUser?'':'flex gap-2 sm:gap-3 items-start'}`}>
+        {!isUser && (
+          <div className="mt-1 shrink-0">
+            <Orb size={28}/>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          {!isUser ? (
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="mono text-[10px] tracking-[0.3em] text-sky-300/70">NOVA · ASSISTANT</span>
+              <span className="mono text-[10px] text-white/25">·</span>
+              <span className="mono text-[10px] text-white/30">{time}</span>
+            </div>
+          ) : null}
+          <GlassCard
+            bright={isUser}
+            bordered={!isUser}
+            className={`lift px-4 py-3 ${isUser?'rounded-2xl rounded-br-sm':'rounded-2xl rounded-tl-sm'}`}
+          >
+            {isUser ? (
+              <div className="text-[14.5px] leading-relaxed whitespace-pre-wrap text-white">
+                {msg.content}
+              </div>
+            ) : (
+              <div className="md-body" dangerouslySetInnerHTML={{__html: renderMarkdown(text) + (typing ? '<span class="caret"></span>' : '')}}/>
+            )}
+          </GlassCard>
+          <div className={`flex items-center gap-2 mt-1.5 ${isUser?'justify-end':'justify-start pl-1'}`}>
+            {isUser ? (
+              <span className="mono text-[10px] tracking-[0.25em] text-white/30">YOU · {time}</span>
+            ) : (
+              <button
+                onClick={copy}
+                className="opacity-0 group-hover:opacity-100 transition-opacity mono text-[10px] tracking-[0.2em] text-white/40 hover:text-sky-300 flex items-center gap-1.5"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                {copied ? 'COPIED' : 'COPY'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ---------- Typing ---------- */
+function Typing(){
+  const phrases = ['composing response','retrieving context','synthesizing tokens','reasoning'];
+  const [i, setI] = useState(0);
+  useEffect(()=>{ const t = setInterval(()=>setI(x=>(x+1)%phrases.length), 1500); return ()=>clearInterval(t); },[]);
+  return (
+    <motion.div
+      initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
+      className="flex items-start gap-3"
+    >
+      <Orb size={28}/>
+      <div>
+        <div className="mono text-[10px] tracking-[0.3em] text-sky-300/70 mb-1.5">NOVA · THINKING</div>
+        <GlassCard bordered className="px-4 py-3 rounded-2xl rounded-tl-sm">
+          <div className="flex items-center gap-1.5">
+            {[0,1,2].map(k=>(
+              <motion.span key={k} className="typing-dot"
+                animate={{ y:[0,-4,0], opacity:[.4,1,.4] }}
+                transition={{ duration: 1, repeat: Infinity, delay: k*0.15 }}
+              />
+            ))}
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={phrases[i]}
+                initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-4 }}
+                transition={{ duration:.3 }}
+                className="ml-2 mono text-[10px] text-white/40"
+              >{phrases[i]}</motion.span>
+            </AnimatePresence>
+          </div>
+        </GlassCard>
+      </div>
+    </motion.div>
+  );
+}
+
+
+/* ---------- Empty state ---------- */
+function EmptyState({onSuggest}){
+  const suggestions = [
+    { icon:'M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z', title:'Summarize this document', sub:'Extract key insights from a PDF'},
+    { icon:'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', title:'Compare two concepts', sub:'Side-by-side analysis'},
+    { icon:'M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z', title:'Brainstorm ideas', sub:'For a sci-fi short film' },
+    { icon:'M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3', title:'Draft a plan', sub:'Launch strategy for a startup'},
+  ];
+
+  const placeholders = ['fusion energy research…', 'a launch plan…', 'a futuristic console design…', 'a sci-fi premise…'];
+  const [phI, setPhI] = useState(0);
+  useEffect(()=>{ const t = setInterval(()=>setPhI(x=>(x+1)%placeholders.length), 2200); return ()=>clearInterval(t); },[]);
+
+  return (
+    <motion.div
+      initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ duration:1 }}
+      className="h-full flex flex-col items-center justify-center text-center px-6 sm:px-8 py-10"
+    >
+      <motion.div
+        initial={{ scale:.8, opacity:0 }} animate={{ scale:1, opacity:1 }}
+        transition={{ duration:1.2, ease:'easeOut' }}
+        className="float-y"
+      >
+        <Orb size={typeof window!=='undefined' && window.innerWidth < 480 ? 84 : 120}/>
+      </motion.div>
+
+      <motion.h1
+        initial={{ opacity:0, y:14, filter:'blur(10px)' }}
+        animate={{ opacity:1, y:0, filter:'blur(0px)' }}
+        transition={{ duration: 1, delay:.2 }}
+        className="nova-title serif mt-6 sm:mt-10 leading-[1.05]"
+        style={{ fontSize: 'clamp(2.1rem, 7vw, 4.75rem)' }}
+      >
+        Good to see you. <span className="italic text-white/70">Where shall we begin?</span>
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+        transition={{ duration: 1, delay:.4 }}
+        className="text-white/55 mt-5 max-w-xl text-[15px] leading-relaxed flex items-center justify-center gap-1.5 flex-wrap"
+      >
+        <span>Ask me about</span>
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={placeholders[phI]}
+            initial={{ opacity:0, y:8, filter:'blur(6px)' }}
+            animate={{ opacity:1, y:0, filter:'blur(0px)' }}
+            exit={{ opacity:0, y:-8, filter:'blur(6px)' }}
+            transition={{ duration:.45 }}
+            className="text-sky-300/90 italic"
+          >{placeholders[phI]}</motion.span>
+        </AnimatePresence>
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }}
+        transition={{ duration: 1, delay:.6 }}
+        className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl"
+      >
+        {suggestions.map((s,i)=>(
+          <motion.button
+            key={i}
+            onClick={()=>onSuggest(s.title + ' — ' + s.sub.toLowerCase())}
+            whileHover={{ y:-2 }}
+            transition={{ duration:.2 }}
+            className="chip rounded-2xl px-4 py-3.5 text-left flex items-start gap-3 group"
+          >
+            <span className="mt-0.5 w-8 h-8 rounded-xl glass-bright flex items-center justify-center shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d={s.icon}/></svg>
+            </span>
+            <span className="flex-1 min-w-0">
+              <div className="text-[13.5px] text-white/90 group-hover:text-white">{s.title}</div>
+              <div className="text-[11.5px] text-white/45 mt-0.5">{s.sub}</div>
+            </span>
+            <svg className="opacity-0 group-hover:opacity-100 transition-opacity mt-1 text-sky-300/80" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </motion.button>
+        ))}
+      </motion.div>
+
+      <div className="mt-12 flex items-center gap-3 mono text-[10px] tracking-[0.3em] text-white/30">
+        <span className="w-8 h-px bg-white/20"/>
+        SECURE · ENCRYPTED · v3.14
+        <span className="w-8 h-px bg-white/20"/>
+      </div>
+    </motion.div>
+  );
+}
+
+
+/* ---------- Input ---------- */
+function InputBar({value, setValue, onSend, disabled, inputRef}){
+  const localRef = useRef(null);
+  const ref = inputRef || localRef;
+
+  useEffect(()=>{
+    const el = ref.current; if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+  }, [value]);
+
+  const handleKey = (e)=>{
+    if (e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      if (value.trim() && !disabled) onSend();
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity:0, y:30, filter:'blur(10px)' }}
+      animate={{ opacity:1, y:0, filter:'blur(0px)' }}
+      transition={{ duration: .8, delay:.3, ease:'easeOut' }}
+      className="w-full px-3 sm:px-4 pb-5 pt-2"
+    >
+      <GlassCard bordered className="rounded-3xl p-3 pl-4 sm:pl-5 ring-soft">
+        <div className="flex items-end gap-3">
+          <div className="hidden sm:flex items-center gap-2 pb-2.5 text-white/40">
+            <motion.span
+              className="w-2 h-2 rounded-full bg-sky-400"
+              style={Object.assign({},{boxShadow:'0 0 10px #5aa9ff'})}
+              animate={{ opacity:[1,.4,1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+            <span className="mono text-[10px] tracking-[0.3em]">PROMPT</span>
+          </div>
+          <textarea
+            ref={ref}
+            value={value}
+            onChange={(e)=>setValue(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Transmit a message to Nova…  (press / to focus)"
+            rows={1}
+            className="nova-input flex-1 py-2.5"
+            autoFocus
+          />
+          <div className="flex items-center gap-2">
+            <button title="Attach" className="hidden sm:flex w-9 h-9 rounded-full text-white/50 hover:text-white hover:bg-white/5 items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 01-7.78-7.78l9.19-9.19a3.5 3.5 0 014.95 4.95L9.41 17.41a1.5 1.5 0 11-2.12-2.12L15.5 7.07"/></svg>
+            </button>
+            <motion.button
+              whileTap={{ scale: .94 }}
+              whileHover={{ scale: 1.04 }}
+              disabled={!value.trim() || disabled}
+              onClick={onSend}
+              className="relative h-10 px-4 rounded-2xl glass-bright text-white text-sm font-medium flex items-center gap-2 disabled:opacity-40"
+            >
+              <span>Send</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </motion.button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-2 px-2 gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="mono text-[10px] text-white/40 tracking-[0.2em] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.02]">⌘ GEMINI · 1.5 PRO</span>
+            <span className="hidden md:inline mono text-[10px] text-white/30 tracking-[0.2em]">ENTER · SEND</span>
+            <span className="hidden md:inline mono text-[10px] text-white/20 tracking-[0.2em]">⇧+ENTER · NEWLINE</span>
+            <span className="hidden lg:inline mono text-[10px] text-white/20 tracking-[0.2em]">ESC · CLEAR</span>
+          </div>
+          <div className="mono text-[10px] text-white/30 shrink-0">{value.length} chars</div>
+        </div>
+      </GlassCard>
+    </motion.div>
+  );
+}
+
+/* ---------- Session storage helpers ---------- */
+const SESSION_KEY = 'nova_session_id';
+const getStoredSessionId = () => {
+  try { return localStorage.getItem(SESSION_KEY); } catch(e){ return null; }
+};
+const setStoredSessionId = (id) => {
+  try { localStorage.setItem(SESSION_KEY, String(id)); } catch(e){}
+};
+
+/* ---------- App ---------- */
+function App(){
+
+  const initialHistory  = Array.isArray(window.__CHAT_HISTORY__) ? window.__CHAT_HISTORY__ : [];
+  const initialSessions = Array.isArray(window.__SESSIONS__)     ? window.__SESSIONS__     : [];
+  const initialPdfs     = Array.isArray(window.__SESSION_PDFS__) ? window.__SESSION_PDFS__ : [];
+
+  const [history,   setHistory]   = useState(initialHistory);
+  const [sessions,  setSessions]  = useState(initialSessions);
+  const [sessionId, setSessionId] = useState(null);
+  const [input,     setInput]     = useState('');
+  const [pending,   setPending]   = useState(false);
+  const [mobileOpen,setMobileOpen]= useState(false);
+  const [atBottom,  setAtBottom]  = useState(true);
+  // Map<sessionId, string[]> of uploaded PDF filenames
+  const [pdfsBySession, setPdfsBySession] = useState({});
+
+  const scrollRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  /* ----- Bootstrap session on first load ----- */
+  useEffect(()=>{
+    let stored = getStoredSessionId();
+
+    // If we already have a session, just sync the hidden form field
+    if (stored){
+      setSessionId(stored);
+      const field = document.getElementById('nova-session-id');
+      if (field) field.value = stored;
+      return;
+    }
+
+    // No session — create one
+    fetch('/create_new_session')
+      .then(r => r.json())
+      .then(data => {
+        const newId = data.session_id;
+        setStoredSessionId(newId);
+        setSessionId(newId);
+        const field = document.getElementById('nova-session-id');
+        if (field) field.value = newId;
+        return refreshSessions();
+      })
+      .catch(err => console.error('Failed to create session', err));
+  }, []);
+
+  /* ----- Seed initial PDF list (from Jinja) into the active session ----- */
+  useEffect(()=>{
+    if (sessionId != null && initialPdfs.length && !pdfsBySession[sessionId]){
+      setPdfsBySession(prev => ({ ...prev, [sessionId]: initialPdfs }));
+    }
+  }, [sessionId]);
+
+  const currentPdfs = sessionId != null ? (pdfsBySession[sessionId] || []) : [];
+
+  const handlePdfsUploaded = useCallback((names) => {
+    if (sessionId == null) return;
+    setPdfsBySession(prev => {
+      const existing = prev[sessionId] || [];
+      return { ...prev, [sessionId]: existing.concat(names) };
+    });
+  }, [sessionId]);
+
+  /* ----- Keep hidden form field in sync ----- */
+  useEffect(()=>{
+    const field = document.getElementById('nova-session-id');
+    if (field && sessionId != null) field.value = sessionId;
+  }, [sessionId]);
+
+  /* ----- Refresh sessions list from server ----- */
+  const refreshSessions = useCallback(async () => {
+    try {
+      const res = await fetch('/', { headers: { 'Accept':'text/html' } });
+      const html = await res.text();
+      const match = html.match(/window\.__SESSIONS__\s*=\s*(\[[\s\S]*?\]);/);
+      if (match){
+        try {
+          const list = JSON.parse(match[1]);
+          if (Array.isArray(list)) setSessions(list);
+        } catch(e){}
+      }
+    } catch(e){ console.warn('Could not refresh sessions', e); }
+  }, []);
+
+  /* ----- Load a session ----- */
+  const loadSession = useCallback(async (id) => {
+    try {
+
+      const res = await fetch(`/load_session/${id}`);
+
+      const data = await res.json();
+
+      setHistory(
+        Array.isArray(data.history)
+          ? data.history
+          : []
+      );
+
+      setPdfsBySession(prev => ({
+        ...prev,
+        [id]: data.pdfs || []
+      }));
+
+    } catch(e){
+
+        console.error('Failed to load session', e);
+
+        setHistory([]);
+
+        setPdfsBySession(prev => ({
+          ...prev,
+          [id]: []
+        }));
+
+      }
+    }, []);
+  /* ----- Select a session from sidebar ----- */
+  const selectSession = useCallback((id) => {
+    if (String(id) === String(sessionId)) { setMobileOpen(false); return; }
+    setStoredSessionId(id);
+    setSessionId(id);
+    loadSession(id);
+    setMobileOpen(false);
+  }, [sessionId, loadSession]);
+
+  /* ----- New Chat ----- */
+  const newChat = useCallback(async () => {
+    try {
+      const res = await fetch('/create_new_session');
+      const data = await res.json();
+      const newId = data.session_id;
+      setStoredSessionId(newId);
+      setSessionId(newId);
+      setHistory([]);
+      setInput('');
+      setMobileOpen(false);
+      await refreshSessions();
+    } catch(e){
+      console.error('Failed to create new session', e);
+    }
+  }, [refreshSessions]);
+
+  /* ----- Last assistant index for typewriter ----- */
+  const lastAssistantIdx = useMemo(()=>{
+    for (let i = history.length - 1; i >= 0; i--) if (history[i].role !== 'user') return i;
+    return -1;
+  }, [history]);
+
+  /* ----- Auto-scroll on new messages ----- */
+  useEffect(()=>{
+    const el = scrollRef.current; if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [history.length, pending]);
+
+  useEffect(()=>{
+    const el = scrollRef.current; if (!el) return;
+    const onScroll = ()=>{
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setAtBottom(dist < 80);
+    };
+    el.addEventListener('scroll', onScroll, { passive:true });
+    return ()=> el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /* ----- Keyboard shortcuts ----- */
+  useEffect(()=>{
+    const onKey = (e)=>{
+      if (e.key === '/' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT'){
+        e.preventDefault(); inputRef.current?.focus();
+      } else if (e.key === 'Escape'){
+        setInput('');
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){
+        e.preventDefault(); setMobileOpen(v=>!v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return ()=> window.removeEventListener('keydown', onKey);
+  }, []);
+
+  /* ----- Send message ----- */
+  const send = () => {
+    const text = input.trim(); if (!text) return;
+    if (!sessionId){
+      console.warn('No active session yet — try again in a moment.');
+      return;
+    }
+    setHistory(history.concat([{ role:'user', content:text }]));
+    setInput('');
+    setPending(true);
+
+    const form    = document.getElementById('nova-form');
+    const qField  = document.getElementById('nova-query');
+    const sField  = document.getElementById('nova-session-id');
+    qField.value  = text;
+    sField.value  = sessionId;
+    form.submit();
+  };
+
+  const scrollDown = ()=>{
+    const el = scrollRef.current; if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="app-shell relative w-full flex overflow-hidden">
+      <AnimatedBackground/>
+
+      <div className="relative z-10 flex w-full h-full">
+        <Sidebar
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        sessions={sessions}
+        activeSessionId={sessionId}
+        onSelectSession={selectSession}
+        onNewChat={newChat}
+        pdfs={currentPdfs}
+        onPdfsUploaded={handlePdfsUploaded}
+        />
+        {/* Main */}
+        <main className="flex-1 flex flex-col min-w-0 h-full p-2 sm:p-4 lg:p-6 lg:pl-0 2xl:p-8 2xl:pl-0">
+          <GlassCard bordered className="flex-1 flex flex-col min-h-0 rounded-2xl sm:rounded-3xl overflow-hidden relative">
+
+            {/* Top bar */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={()=>setMobileOpen(true)}
+                  className="lg:hidden w-9 h-9 rounded-xl chip flex items-center justify-center text-white/70"
+                  aria-label="Open menu"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                </button>
+                <div className="w-2 h-2 rounded-full bg-sky-400" style={Object.assign({},{boxShadow:'0 0 12px #5aa9ff'})}/>
+                <div>
+                  <div className="text-sm flex items-center gap-2">Live Session <span className="hidden sm:inline mono text-[10px] text-white/30">· {history.length} msg</span></div>
+                  <div className="mono text-[10px] tracking-[0.3em] text-white/40">CHANNEL · NOVA-PRIMARY</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Chat area */}
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto nova-scroll">
+              {history.length === 0 && !pending ? (
+                <EmptyState onSuggest={(s)=>{ setInput(s); setTimeout(()=>inputRef.current?.focus(), 10); }}/>
+              ) : (
+                <div className="nova-chat-wrap px-3 sm:px-6 lg:px-10 py-5 sm:py-8 space-y-5 max-w-4xl 2xl:max-w-5xl mx-auto">
+                  <AnimatePresence initial={false}>
+                    {history.map((m,i)=>(
+                      <Message key={i} msg={m} index={i} isLatestAssistant={i === lastAssistantIdx}/>
+                    ))}
+                    {pending && <Typing key="typing"/>}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+
+            {/* Scroll to bottom */}
+            <AnimatePresence>
+              {!atBottom && (
+                <motion.button
+                  initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:10 }}
+                  onClick={scrollDown}
+                  className="absolute bottom-24 sm:bottom-28 right-4 sm:right-6 z-20 w-10 h-10 rounded-full glass-bright flex items-center justify-center text-white shadow-lg"
+                  aria-label="Scroll to bottom"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7 7-7-7"/></svg>
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Input */}
+            <div className="border-t border-white/5">
+              <div className="max-w-4xl 2xl:max-w-5xl mx-auto w-full">
+                <InputBar value={input} setValue={setInput} onSend={send} disabled={pending} inputRef={inputRef}/>
+              </div>
+            </div>
+          </GlassCard>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+{% endraw %}
+</body>
+</html>

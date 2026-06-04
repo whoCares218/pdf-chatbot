@@ -1,0 +1,12 @@
+.env
+
+uploads/
+
+chroma_database/
+
+**pycache**/
+
+*.pyc
+
+.idea/
+.vscode/
