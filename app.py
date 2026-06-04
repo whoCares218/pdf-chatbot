@@ -27,7 +27,10 @@ from loader import load_pdf
 from vectorstore import store_pdf_in_chroma
 
 load_dotenv()
+import os
 
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("chroma_database", exist_ok=True)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 connection = psycopg2.connect(
