@@ -13,9 +13,11 @@ client_chroma = chromadb.PersistentClient(
     path="chroma_database"
 )
 
-collection = client_chroma.get_collection(
-    "pdf_text_chunks"
-)
+def get_collection():
+    try:
+        return client_chroma.get_collection("pdf_text_chunks")
+    except:
+        return client_chroma.create_collection("pdf_text_chunks")
 
 def search(query, session_id, k=3):
 
@@ -23,8 +25,8 @@ def search(query, session_id, k=3):
         model="gemini-embedding-2",
         contents=query
     )
-
     query_embedding = response.embeddings[0].values
+    collection = get_collection()   
 
     results = collection.query(
         query_embeddings=[query_embedding],
