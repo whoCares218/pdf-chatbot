@@ -13,16 +13,18 @@ client_chroma = chromadb.PersistentClient(
     path="chroma_database"
 )
 
+# ---------- FIX 1: safe collection ----------
 def get_collection():
     try:
         return client_chroma.get_collection("pdf_text_chunks")
-    except:
+    except Exception:
         return client_chroma.create_collection("pdf_text_chunks")
 
 
+# ---------- FIX 2: correct function ----------
 def search(query, session_id, k=3):
 
-    collection = get_collection()
+    collection = get_collection()   # IMPORTANT FIX
 
     response = client_google.models.embed_content(
         model="gemini-embedding-2",
