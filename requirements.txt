@@ -3,5 +3,11 @@ gunicorn
 psycopg2-binary
 python-dotenv
 Werkzeug
-google-genai
+
 chromadb
+
+google-genai
+google-generativeai
+
+numpy
+tqdm
