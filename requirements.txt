@@ -6,3 +6,4 @@ werkzeug
 flask
 google-generativeai
 google-genai
+gunicorn
