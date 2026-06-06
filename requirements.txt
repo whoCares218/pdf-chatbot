@@ -1,9 +1,7 @@
 ﻿chromadb
 pypdf
 python-dotenv
-psycopg2-binary
-werkzeug
+psycopg2
 flask
 google-generativeai
 google-genai
-gunicorn
